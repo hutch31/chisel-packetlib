@@ -19,14 +19,16 @@ class PacketSender(wordSize : Int) extends Module {
   })
   // latch incoming packet send requests
   val info = Module(new Queue(new PacketRequest, 4))
-  val count = RegInit(init=0.U(16.W))
+  val txq = Module(new Queue(new PacketData(wordSize), 2))
+  val count = Reg(UInt(16.W))
   val s_idle :: s_packet :: Nil = Enum(2)
   val state = RegInit(init=s_idle)
   io.sendPacket <> info.io.enq
+  io.packetData <> txq.io.deq
 
   info.io.deq.ready := false.B
-  io.packetData.valid := false.B
-  io.packetData.bits := 0.asTypeOf(new PacketData(wordSize))
+  txq.io.enq.valid := false.B
+  txq.io.enq.bits := 0.asTypeOf(new PacketData(wordSize))
 
   switch (state) {
     is (s_idle) {
@@ -37,24 +39,30 @@ class PacketSender(wordSize : Int) extends Module {
     }
 
     is (s_packet) {
-      for (i <- 0 to wordSize-1) {
-        io.packetData.bits.data(i) := count + i.U
-      }
-      when (count + wordSize.U >= info.io.deq.bits.length) {
-        io.packetData.bits.count := info.io.deq.bits.length - count - 1.U
-        when (info.io.deq.bits.packetGood) {
-          io.packetData.bits.code := packetGoodEop
-        }.otherwise {
-          io.packetData.bits.code := packetBadEop
+      txq.io.enq.valid := true.B
+      when(txq.io.enq.ready) {
+        for (i <- 0 to wordSize - 1) {
+          txq.io.enq.bits.data(i) := count + i.U
         }
-      }.otherwise {
-        io.packetData.bits.count := 0.U
-        when (count === 0.U) {
-          io.packetData.bits.code := packetBadEop
+        when(count + wordSize.U >= info.io.deq.bits.length) {
+          txq.io.enq.bits.count := info.io.deq.bits.length - count - 1.U
+          info.io.deq.ready := true.B
+          state := s_idle
+
+          when(info.io.deq.bits.packetGood) {
+            txq.io.enq.bits.code.code := packetGoodEop
+          }.otherwise {
+            txq.io.enq.bits.code.code := packetBadEop
+          }
         }.otherwise {
-          io.packetData.bits.code := packetBody
+          txq.io.enq.bits.count := 0.U
+          when(count === 0.U) {
+            txq.io.enq.bits.code.code := packetSop
+          }.otherwise {
+            txq.io.enq.bits.code.code := packetBody
+          }
+          count := count + wordSize.U
         }
-        count := count + wordSize.U
       }
     }
   }

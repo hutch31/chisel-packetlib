@@ -90,7 +90,6 @@ class PacketWriterInterface(c: BufferConfig) extends Bundle {
   val writeReqOut = ValidIO(new BufferWriteReq(c))
   override def cloneType =
     new PacketWriterInterface(c).asInstanceOf[this.type]
-
 }
 
 class PacketReaderInterface(c: BufferConfig) extends Bundle {

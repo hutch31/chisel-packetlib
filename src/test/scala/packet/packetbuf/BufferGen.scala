@@ -13,5 +13,8 @@ object BufferGen extends App {
   //chisel3.Driver.execute(args, () => new RingScheduler(8, 4))
   //chisel3.Driver.execute(args, () => new FlatPacketBuffer(conf))
   //chisel3.Driver.execute(args, () => new FreeList(conf))
-  chisel3.Driver.execute(args, () => new PacketWriter(conf, 0))
+  //chisel3.Driver.execute(args, () => new PacketWriter(conf, 0))
+
+  val conf2 = new BufferConfig(1, 4, 2, 4, 2, 2, MTU = 2048, credit = 2)
+  chisel3.Driver.execute(args, () => new PacketWriterTestbench(conf))
 }
