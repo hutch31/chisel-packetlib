@@ -6,6 +6,12 @@ case class BufferConfig(
                          WordSize : Int,
                          LinesPerPage : Int,
                          ReadClients : Int,
-                         WriteClients : Int) {
+                         WriteClients : Int,
+                         MTU : Int,
+                         credit : Int) {
+  val freeListReqCredit = credit
+  val freeListRespCredit = credit
+  val linkWriteCredit = credit
+  val schedWriteCredit = credit
 
 }

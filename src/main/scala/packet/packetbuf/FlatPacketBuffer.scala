@@ -4,7 +4,12 @@ import chisel3._
 
 class FlatPacketBuffer(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
-    val writeReqOut = Output(new WriteReq(c))
-    val writeReqIn = Input(new WriteReq(c))
+    val buf = new BufferMemoryIO(c)
+    val free = new FreeListIO(c)
   })
+  val buffer = Module(new BufferMemory(c))
+  val freeList = Module(new FreeList(c))
+
+  buffer.io <> io.buf
+  freeList.io <> io.free
 }
