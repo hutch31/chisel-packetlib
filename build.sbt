@@ -1,6 +1,7 @@
 
 // Only needed if not organized according to the sbt standard
 //unmanagedSourceDirectories in Compile += "ip/src"
+Compile / unmanagedSourceDirectories += baseDirectory.value / "ip" / "src" / "main" / "scala" / "chisel" / "lib" / "dclib"
 
 // This is the latest release from UCB
 // libraryDependencies += "edu.berkeley.cs" %% "chisel3" % "latest.release"
@@ -56,7 +57,7 @@ resolvers ++= Seq(
 val defaultVersions = Map(
   "chisel-iotesters" -> "1.5-SNAPSHOT",
   "chiseltest"       -> "0.3-SNAPSHOT"
-  )
+)
 
 libraryDependencies ++= Seq("chiseltest", "chisel-iotesters").map {
   dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep)) }
