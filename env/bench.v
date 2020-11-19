@@ -11,13 +11,12 @@ module bench;
   // Beginning of automatic wires (for undeclared instantiated-module outputs)
   wire			io_error;		// From pwt of PacketWriterTestbench.v
   wire			io_sendPacket_ready;	// From pwt of PacketWriterTestbench.v
+  wire [8:0]		io_writePageCount_bits;	// From pwt of PacketWriterTestbench.v
+  wire			io_writePageCount_valid;// From pwt of PacketWriterTestbench.v
   wire [7:0]		io_writeReqOut_bits_data_0;// From pwt of PacketWriterTestbench.v
   wire [7:0]		io_writeReqOut_bits_data_1;// From pwt of PacketWriterTestbench.v
-  wire [7:0]		io_writeReqOut_bits_data_2;// From pwt of PacketWriterTestbench.v
-  wire [7:0]		io_writeReqOut_bits_data_3;// From pwt of PacketWriterTestbench.v
-  wire [3:0]		io_writeReqOut_bits_line;// From pwt of PacketWriterTestbench.v
-  wire [2:0]		io_writeReqOut_bits_page_pageNum;// From pwt of PacketWriterTestbench.v
-  wire			io_writeReqOut_bits_page_pool;// From pwt of PacketWriterTestbench.v
+  wire [1:0]		io_writeReqOut_bits_line;// From pwt of PacketWriterTestbench.v
+  wire [1:0]		io_writeReqOut_bits_page_pageNum;// From pwt of PacketWriterTestbench.v
   wire			io_writeReqOut_bits_slot;// From pwt of PacketWriterTestbench.v
   wire			io_writeReqOut_valid;	// From pwt of PacketWriterTestbench.v
   // End of automatics
@@ -28,14 +27,13 @@ module bench;
      .io_sendPacket_ready		(io_sendPacket_ready),
      .io_writeReqOut_valid		(io_writeReqOut_valid),
      .io_writeReqOut_bits_slot		(io_writeReqOut_bits_slot),
-     .io_writeReqOut_bits_page_pool	(io_writeReqOut_bits_page_pool),
-     .io_writeReqOut_bits_page_pageNum	(io_writeReqOut_bits_page_pageNum[2:0]),
-     .io_writeReqOut_bits_line		(io_writeReqOut_bits_line[3:0]),
+     .io_writeReqOut_bits_page_pageNum	(io_writeReqOut_bits_page_pageNum[1:0]),
+     .io_writeReqOut_bits_line		(io_writeReqOut_bits_line[1:0]),
      .io_writeReqOut_bits_data_0	(io_writeReqOut_bits_data_0[7:0]),
      .io_writeReqOut_bits_data_1	(io_writeReqOut_bits_data_1[7:0]),
-     .io_writeReqOut_bits_data_2	(io_writeReqOut_bits_data_2[7:0]),
-     .io_writeReqOut_bits_data_3	(io_writeReqOut_bits_data_3[7:0]),
      .io_error				(io_error),
+     .io_writePageCount_valid		(io_writePageCount_valid),
+     .io_writePageCount_bits		(io_writePageCount_bits[8:0]),
      // Inputs
      .clock				(clock),
      .reset				(reset),
@@ -74,3 +72,6 @@ module bench;
     end
   
 endmodule // bench
+// Local Variables:
+// verilog-library-directories:("..")
+// End:

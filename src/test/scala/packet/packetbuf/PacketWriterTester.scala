@@ -9,24 +9,22 @@ import chiseltest.experimental.TestOptionBuilder._
 import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
 
+class StubStatistics(c : BufferConfig) extends Bundle {
+  val writePageCount = UInt(log2Ceil(c.maxPagePerPacket).W)
+  val writeLineCount = UInt(log2Ceil(c.MTU).W)
+  override def cloneType = new StubStatistics(c).asInstanceOf[this.type]
+}
+
 class BufferInterfaceStub(c: BufferConfig, id: Int) extends Module {
   val io = IO(new Bundle {
     val interface = Flipped(new PacketWriterInterface(c))
     val writeReqOut = ValidIO(new BufferWriteReq(c))
     val error = Output(Bool())
+    val count = ValidIO(new StubStatistics(c))
   })
 
-  /*
-  // Interface to free list for requesting free pages to write to
-  val freeListReq = new CreditIO(new PageReq(c))
-  val freeListPage = Flipped(new CreditIO(new PageResp(c)))
-  // Link list write interface
-  val linkListWriteReq = new CreditIO(new LinkListWriteReq(c))
-  // Connection to page write ring
-  val writeSlotReq = Output(Bool())
-  val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
-  val writeReqOut = ValidIO(new BufferWriteReq(c))
-   */
+  val writePageCount = RegInit(init=0.U(log2Ceil(c.maxPagePerPacket).W))
+  val writeLineCount = RegInit(0.U(log2Ceil(c.MTU).W))
   val error = RegInit(false.B)
   // automatically return credit for each request
   io.interface.freeListReq.credit := RegNext(next=io.interface.freeListReq.valid, init=false.B)
@@ -63,6 +61,17 @@ class BufferInterfaceStub(c: BufferConfig, id: Int) extends Module {
   // pass write req out through
   io.writeReqOut := io.interface.writeReqOut
   io.error := error
+  when (io.interface.writeReqOut.valid) {
+    writeLineCount := writeLineCount + 1.U
+  }
+
+  // Keep track of how many pages are written for each packet
+  when (io.interface.linkListWriteReq.valid) {
+    writePageCount := writePageCount + 1.U
+  }
+  io.count.bits.writePageCount := writePageCount
+  io.count.bits.writeLineCount := writeLineCount
+  io.count.valid := RegNext(next=io.interface.linkListWriteReq.valid & !io.interface.linkListWriteReq.bits.data.nextPageValid)
 }
 
 class PacketWriterTestbench(c: BufferConfig) extends Module {
@@ -70,6 +79,7 @@ class PacketWriterTestbench(c: BufferConfig) extends Module {
     val sendPacket = Flipped(Decoupled(new PacketRequest))
     val writeReqOut = ValidIO(new BufferWriteReq(c))
     val error = Output(Bool())
+    val count = ValidIO(new StubStatistics(c))
   })
   val sender = Module(new PacketSender(c.WordSize))
   val ifStub = Module(new BufferInterfaceStub(c, 0))
@@ -77,6 +87,7 @@ class PacketWriterTestbench(c: BufferConfig) extends Module {
 
   io.sendPacket <> sender.io.sendPacket
   io.writeReqOut <> ifStub.io.writeReqOut
+  io.count <> ifStub.io.count
 
   sender.io.packetData <> dut.io.portDataIn
   dut.io.interface <> ifStub.io.interface
@@ -93,18 +104,28 @@ class PacketWriterTestbench(c: BufferConfig) extends Module {
 class PacketWriterTester extends FlatSpec with ChiselScalatestTester with Matchers  {
   behavior of "Testers2"
 
-  it should "write a packet into sequential lines" in {
+  it should "write a packet with correct number of lines and pages" in {
     val pagePerPool = 4
-    val conf = new BufferConfig(1, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2)
+    val wordSize = 2
+    val linesPerPage = 4
+    val conf = new BufferConfig(1, pagePerPool, wordSize, linesPerPage, 2, 2, MTU = 2048, credit = 2)
     val poolNum = 1
 
     test(new PacketWriterTestbench(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
-        c.io.sendPacket.bits.poke(new PacketRequest().Lit(_.length -> 128.U, _.packetGood -> true.B, _.pid -> 0.U))
+        val length = 128
+        val expNumPages = length / (wordSize*linesPerPage)
+          c.io.sendPacket.bits.poke(new PacketRequest().Lit(_.length -> length.U, _.packetGood -> true.B, _.pid -> 0.U))
         c.io.sendPacket.valid.poke(true.B)
         c.clock.step(1)
         c.io.sendPacket.valid.poke(false.B)
-        c.clock.step(200)
+        c.clock.step(10)
+        while (c.io.count.valid.peek().litToBoolean == false) {
+          c.clock.step(1)
+        }
+        c.io.count.bits.writePageCount.expect(expNumPages.U)
+        c.io.count.bits.writeLineCount.expect(length / conf.WordSize)
+        c.clock.step(5)
       }
     }
   }

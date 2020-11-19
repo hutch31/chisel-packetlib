@@ -13,5 +13,5 @@ case class BufferConfig(
   val freeListRespCredit = credit
   val linkWriteCredit = credit
   val schedWriteCredit = credit
-
+  val maxPagePerPacket = MTU / (WordSize*LinesPerPage) + 1
 }

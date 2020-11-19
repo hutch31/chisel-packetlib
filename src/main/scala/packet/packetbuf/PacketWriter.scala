@@ -8,6 +8,7 @@ import chisel3.util._
 
 
 class PacketLineInfo(c : BufferConfig) extends Bundle {
+  val data = Vec(c.WordSize, UInt(8.W))
   val page = new PageType(c)
   val line = UInt(log2Ceil(c.LinesPerPage).W)
   override def cloneType = new PacketLineInfo(c).asInstanceOf[this.type]
@@ -17,6 +18,7 @@ class PacketLineInfo(c : BufferConfig) extends Bundle {
  * The PacketWriter is responsible for receive data words from the port, requesting
  * memory pages, and sequencing the writes into the packet buffer.
  *
+ * @param writeBuf number of data words the PacketWriter can hold while waiting for a slot on the write ring
  * @param c  Packet buffer configuration
  * @param id Unique ID for this packet writer, for write slot requests
  */
@@ -33,24 +35,28 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
   val schedOutSend = Module(new DCCreditSender(io.schedOut.bits, c.schedWriteCredit))
   val bufferAllocator = Module(new BasicPacketBufferAllocator(c, id))
 
+  // this queue holds the metadata about the data line to be written (buffer address and line address)
   val lineInfoHold = Module(new Queue(new PacketLineInfo(c), writeBuf))
+  // count number of lines we have used in the current page, used for linking to the next page
+  val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
+  // output data holding register, this forms part of the write ring
   val interfaceOutReg = Reg(io.interface.writeReqOut.bits.cloneType)
   val interfaceOutValid = RegInit(false.B)
-  val dataQ = Module(new Queue(new PacketData(c.WordSize), writeBuf))
+  // small queue for holding data between accepting it from portDataIn and sending on the ring
+  //val dataQ = Module(new Queue(new PacketData(c.WordSize), writeBuf))
   val s_idle :: s_page :: Nil = Enum(2)
   val state = RegInit(init=s_idle)
-  val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
   val currentPage = Reg(new PageType(c))
   val schedOutHold = Reg(new SchedulerReq(c))
   val schedOutValid = RegInit(false.B)
 
   // connect incoming data to buffer, send out a slot request for each data line
   io.portDataIn.ready := false.B
-  dataQ.io.enq.valid := false.B
-  dataQ.io.enq.bits := io.portDataIn.bits
+  //dataQ.io.enq.valid := false.B
+  //dataQ.io.enq.bits := io.portDataIn.bits
 
   // connect interface to packet buffer
-  io.interface.writeSlotReq := io.portDataIn.ready && dataQ.io.enq.valid
+  io.interface.writeSlotReq := io.portDataIn.ready && lineInfoHold.io.enq.valid
   io.interface.linkListWriteReq <> linkWriteSend.io.deq
   io.interface.freeListReq <> bufferAllocator.io.freeListReq
   io.interface.freeListPage <> bufferAllocator.io.freeListPage
@@ -58,6 +64,7 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
   lineInfoHold.io.enq.valid := false.B
   lineInfoHold.io.enq.bits.page := currentPage
   lineInfoHold.io.enq.bits.line := pageCount
+  lineInfoHold.io.enq.bits.data := io.portDataIn.bits.data
 
   linkWriteSend.io.enq.valid := false.B
   linkWriteSend.io.enq.bits.addr := currentPage
@@ -70,7 +77,7 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
   io.schedOut <> schedOutSend.io.deq
 
   // all resources needed by the state machine are available
-  val fsmResourceOk = dataQ.io.enq.ready && io.portDataIn.valid && lineInfoHold.io.enq.ready && bufferAllocator.io.freePage.valid
+  val fsmResourceOk = io.portDataIn.valid && lineInfoHold.io.enq.ready && bufferAllocator.io.freePage.valid
 
   // state machine to put links into pages
   bufferAllocator.io.freePage.ready := false.B
@@ -78,10 +85,10 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
     is (s_idle) {
       when (fsmResourceOk && io.portDataIn.bits.code.isSop()) {
         state := s_page
-        dataQ.io.enq.valid := true.B
+        //dataQ.io.enq.valid := true.B
         io.portDataIn.ready := true.B
         schedOutHold.length := c.WordSize.U
-        pageCount := 0.U
+        pageCount := 1.U
         lineInfoHold.io.enq.valid := true.B
         lineInfoHold.io.enq.bits.line := 0.U
         lineInfoHold.io.enq.bits.page := bufferAllocator.io.freePage.bits
@@ -94,6 +101,8 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
     is (s_page) {
       when (fsmResourceOk && !schedOutValid) {
         lineInfoHold.io.enq.valid := true.B
+        //dataQ.io.enq.valid := true.B
+        io.portDataIn.ready := true.B
 
         when (io.portDataIn.bits.code.isEop()) {
           schedOutHold.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
@@ -112,6 +121,8 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
             currentPage := bufferAllocator.io.freePage.bits
             bufferAllocator.io.freePage.ready := true.B
             pageCount := 0.U
+          }.otherwise {
+            pageCount := pageCount + 1.U
           }
         }
       }
@@ -120,17 +131,17 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
 
 
   // Insert the data from portDataIn on to the ring, waiting for our slot number to come up
-  dataQ.io.deq.ready := false.B
+  //dataQ.io.deq.ready := false.B
   io.interface.writeReqOut.valid := interfaceOutValid
   io.interface.writeReqOut.bits := interfaceOutReg
   lineInfoHold.io.deq.ready := false.B
 
-  when (dataQ.io.deq.valid && lineInfoHold.io.deq.valid && !io.interface.writeReqIn.valid && io.interface.writeReqIn.bits.slot === id.U) {
+  when (lineInfoHold.io.deq.valid && !io.interface.writeReqIn.valid && io.interface.writeReqIn.bits.slot === id.U) {
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
-    dataQ.io.deq.ready := true.B
+    //dataQ.io.deq.ready := true.B
     interfaceOutReg.slot := id.U
-    interfaceOutReg.data := dataQ.io.deq.bits.data
+    interfaceOutReg.data := lineInfoHold.io.deq.bits.data
     interfaceOutReg.line := lineInfoHold.io.deq.bits.line
     interfaceOutReg.page := lineInfoHold.io.deq.bits.page
   }.otherwise {

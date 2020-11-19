@@ -1,3 +1,3 @@
-iverilog bench.v PacketWriterTestbench.v
+iverilog bench.v ../PacketWriterTestbench.v
 vvp ./a.out
 
