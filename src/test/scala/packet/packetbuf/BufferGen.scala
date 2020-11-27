@@ -19,7 +19,13 @@ object BufferGen extends App {
 
   val conf2 = new BufferConfig(1, 4, 2, 4, 2, 2, MTU = 2048, credit = 2)
   //chisel3.Driver.execute(args, () => new PacketWriterTestbench(conf))
-  (new chisel3.stage.ChiselStage).execute(
+  val chiselStage = new chisel3.stage.ChiselStage
+  chiselStage.execute(
     Array("-X", "verilog"),
-    Seq(ChiselGeneratorAnnotation(() => new PacketWriterTestbench(conf2))))
+    Seq(ChiselGeneratorAnnotation(() => new PacketWriterTestbench(conf2)))
+    )
+  chiselStage.execute(
+    Array("-X", "verilog"),
+    Seq(ChiselGeneratorAnnotation(() =>new PacketReader(conf2, 0)))
+  )
 }

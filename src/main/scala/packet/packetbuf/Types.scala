@@ -97,11 +97,10 @@ class PacketReaderInterface(c: BufferConfig) extends Bundle {
   val linkListReadReq = new CreditIO(new LinkListReadReq(c))
   val linkListReadResp = Flipped(new CreditIO(new LinkListReadResp(c)))
   // Interface to free list for returning pages
-  val freeListReq = new CreditIO(new PageReq(c))
-  val freeListPage = Flipped(new CreditIO(new PageResp(c)))
+  val freeListReturn = new CreditIO(new PageType(c))
   // Buffer read request and response
   val bufferReadReq = new CreditIO(new BufferReadReq(c))
-  val bufferReadResp = Input(new BufferReadResp(c))
+  val bufferReadResp = Flipped(ValidIO(new BufferReadResp(c)))
   override def cloneType =
     new PacketReaderInterface(c).asInstanceOf[this.type]
 }
