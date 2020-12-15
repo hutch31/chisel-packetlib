@@ -124,7 +124,7 @@ class PacketWriterTester extends FlatSpec with ChiselScalatestTester with Matche
           c.clock.step(1)
         }
         c.io.count.bits.writePageCount.expect(expNumPages.U)
-        c.io.count.bits.writeLineCount.expect(length / conf.WordSize)
+        c.io.count.bits.writeLineCount.expect(length / conf.WordSize - 1)
         c.clock.step(5)
       }
     }

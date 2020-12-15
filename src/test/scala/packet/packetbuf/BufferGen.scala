@@ -26,6 +26,6 @@ object BufferGen extends App {
     )
   chiselStage.execute(
     Array("-X", "verilog"),
-    Seq(ChiselGeneratorAnnotation(() =>new PacketReader(conf2, 0)))
+    Seq(ChiselGeneratorAnnotation(() =>new PacketReader(conf2, txbuf = 1)))
   )
 }

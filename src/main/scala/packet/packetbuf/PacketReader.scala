@@ -19,8 +19,9 @@ class WordMetadata(WordSize : Int) extends Bundle {
   override def cloneType = new WordMetadata(WordSize).asInstanceOf[this.type]
 }
 
-class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
+class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
   val io = IO(new Bundle {
+    val id = Input(UInt(log2Ceil(c.ReadClients).W))
     val portDataOut = Decoupled(new PacketData(c.WordSize))
     val interface = new PacketReaderInterface(c)
     val schedIn = Flipped(new CreditIO(new SchedulerReq(c)))
@@ -36,7 +37,7 @@ class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
   val txRequestCount = RegInit(init=0.U(log2Ceil(txbuf+1).W))
   val ws_idle :: ws_wait_link :: Nil = Enum(2)
   val walkState = RegInit(init=ws_idle)
-  val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
+  val pageCount = RegInit(init=0.U(log2Ceil(c.LinesPerPage).W))
   val bytesRemaining = Reg(UInt(log2Ceil(c.MTU).W))
   val currentPage = Reg(new PageType(c))
   val pageList = Module(new Queue(new PageListEntry(c), 2))
@@ -54,7 +55,7 @@ class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
   // default link list request is for our current page
   linkListTx.io.enq.valid := false.B
   linkListTx.io.enq.bits.addr := currentPage
-  linkListTx.io.enq.bits.requestor := id.U
+  linkListTx.io.enq.bits.requestor := io.id
 
   // length always comes from the scheduler interface
   linkListRx.io.deq.ready := false.B
@@ -68,7 +69,6 @@ class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
 
   switch (walkState) {
     is (ws_idle) {
-      pageCount := 0.U
       txRequestCount := 0.U
       when(schedRx.io.deq.valid & length.io.enq.ready & linkListTx.io.enq.ready) {
         length.io.enq.valid := true.B
@@ -76,6 +76,7 @@ class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
         linkListTx.io.enq.valid := true.B
         currentPage := schedRx.io.deq.bits.startPage
         linkListTx.io.enq.bits.addr := schedRx.io.deq.bits.startPage
+        walkState := ws_wait_link
       }
     }
 
@@ -105,8 +106,8 @@ class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
 
   // buffer read requests are always from our ID, for the page at the head of the pageList
   bufferReadTx.io.enq.valid := false.B
-  bufferReadTx.io.enq.bits.line := 0.U
-  bufferReadTx.io.enq.bits.requestor := id.U
+  bufferReadTx.io.enq.bits.line := pageCount
+  bufferReadTx.io.enq.bits.requestor := io.id
   bufferReadTx.io.enq.bits.page := pageList.io.deq.bits.page
 
   io.pageLinkError := false.B
@@ -114,59 +115,62 @@ class PacketReader(c : BufferConfig, id : Int, txbuf : Int = 1) extends Module {
   freeListTx.io.enq.valid := false.B
   freeListTx.io.enq.bits := pageList.io.deq.bits.page
 
+  val txResourceUsed = txRequestCount + txq.io.count
+  val fsIdleReady = metaQueue.io.enq.ready & pageList.io.deq.valid & length.io.deq.valid & bufferReadTx.io.enq.ready
+  val fsFetchReady = (txResourceUsed < txbuf.U) & metaQueue.io.enq.ready & pageList.io.deq.valid & bufferReadTx.io.enq.ready & freeListTx.io.enq.ready
+
   switch (fetchState) {
     is (fs_idle) {
-      when (metaQueue.io.enq.ready & pageList.io.deq.valid & length.io.deq.valid & bufferReadTx.io.enq.ready) {
+      when (fsIdleReady) {
         fetchState := fs_fetch
         txRequestCount := 1.U
         pageCount := 1.U
-        bytesRemaining := length.io.deq.valid - c.WordSize
+        bytesRemaining := length.io.deq.bits - c.WordSize
         metaQueue.io.enq.valid := true.B
         length.io.deq.ready := true.B
+        bufferReadTx.io.enq.valid := true.B
       }
     }
 
     is (fs_fetch) {
       // keep track of how many requests are outstanding so we don't overflow the buffer
-      when (bufferReadTx.io.enq.fire() & !txq.io.enq.fire()) {
-        txRequestCount := txRequestCount + 1.U
-      }.elsewhen (!bufferReadTx.io.enq.fire() & txq.io.enq.fire()) {
-        txRequestCount := txRequestCount - 1.U
-      }
-
       // when we have space, send a new request
       // once we have requested all the words in a page, pop the current page off the pageList and return
       // the now-empty page to the free list
-      when (txRequestCount + txq.io.count < txbuf) {
-        when (metaQueue.io.enq.ready & pageList.io.deq.valid & bufferReadTx.io.enq.ready & freeListTx.io.enq.ready) {
-          bufferReadTx.io.enq.valid := true.B
-          metaQueue.io.enq.valid := true.B
-          when (bytesRemaining <= c.WordSize) {
-            metaQueue.io.enq.bits.code.code := packetGoodEop
-            metaQueue.io.enq.bits.count := bytesRemaining - 1.U
-            fetchState := fs_idle
+      when (fsFetchReady) {
+        bufferReadTx.io.enq.valid := true.B
+        metaQueue.io.enq.valid := true.B
+        when (!(txq.io.enq.valid & txq.io.enq.ready)) {
+          txRequestCount := txRequestCount + 1.U
+        }
+        when (bytesRemaining <= c.WordSize) {
+          metaQueue.io.enq.bits.code.code := packetGoodEop
+          metaQueue.io.enq.bits.count := bytesRemaining - 1.U
+          fetchState := fs_idle
+          pageList.io.deq.ready := true.B
+          freeListTx.io.enq.valid := true.B
+          io.pageLinkError := !pageList.io.deq.bits.lastPage
+          pageCount := 0.U
+        }.otherwise {
+          bytesRemaining := bytesRemaining - c.WordSize
+          when (pageCount === (c.LinesPerPage-1).U) {
+            pageCount := 0.U
             pageList.io.deq.ready := true.B
             freeListTx.io.enq.valid := true.B
             io.pageLinkError := !pageList.io.deq.bits.lastPage
           }.otherwise {
-            bytesRemaining := bytesRemaining - c.WordSize
-            when (pageCount === (c.LinesPerPage-1).U) {
-              pageCount := 0.U
-              pageList.io.deq.ready := true.B
-              freeListTx.io.enq.valid := true.B
-              io.pageLinkError := !pageList.io.deq.bits.lastPage
-            }.otherwise {
-              pageCount := pageCount + 1.U
-            }
+            pageCount := pageCount + 1.U
           }
         }
+      }.elsewhen (txq.io.enq.valid & txq.io.enq.ready) {
+        txRequestCount := txRequestCount - 1.U
       }
     }
   }
 
   // metadata for the output queue is prepared and ready once data arrives from the packet buffer.
   // Once data arrives, join the data request with the prepared metadata and place it in the output queue
-  txq.io.enq.valid := io.interface.bufferReadResp.valid & io.interface.bufferReadResp.bits.req.requestor === id.U
+  txq.io.enq.valid := io.interface.bufferReadResp.valid & io.interface.bufferReadResp.bits.req.requestor === io.id
   metaQueue.io.deq.ready := txq.io.enq.valid
   txq.io.enq.bits.code.code := metaQueue.io.deq.bits.code.code
   txq.io.enq.bits.count := metaQueue.io.deq.bits.count
