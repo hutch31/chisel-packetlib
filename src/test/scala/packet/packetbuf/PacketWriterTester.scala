@@ -104,7 +104,7 @@ class PacketWriterTestbench(c: BufferConfig) extends Module {
 class PacketWriterTester extends FlatSpec with ChiselScalatestTester with Matchers  {
   behavior of "Testers2"
 
-  it should "write a packet with correct number of lines and pages" in {
+  ignore should "write a packet with correct number of lines and pages" in {
     val pagePerPool = 4
     val wordSize = 2
     val linesPerPage = 4
@@ -130,7 +130,7 @@ class PacketWriterTester extends FlatSpec with ChiselScalatestTester with Matche
     }
   }
 
-  it should "request pages from pools" in {
+  ignore should "request pages from pools" in {
     val pagePerPool = 32
     val conf = new BufferConfig(4, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2)
     test(new BasicPacketBufferAllocator(conf, 0)).withAnnotations(Seq(WriteVcdAnnotation)) {

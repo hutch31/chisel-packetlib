@@ -1,10 +1,9 @@
 package packet.packetbuf
 
-import chisel.lib.packet._
+import packet._
 import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
-import packet.packet._
 
 class PacketRequest extends Bundle {
   val length = UInt(16.W)
@@ -50,16 +49,16 @@ class PacketSender(wordSize : Int) extends Module {
           state := s_idle
 
           when(info.io.deq.bits.packetGood) {
-            txq.io.enq.bits.code.code := packetGoodEop
+            txq.io.enq.bits.code.code := packet.packetGoodEop
           }.otherwise {
-            txq.io.enq.bits.code.code := packetBadEop
+            txq.io.enq.bits.code.code := packet.packetBadEop
           }
         }.otherwise {
           txq.io.enq.bits.count := 0.U
           when(count === 0.U) {
-            txq.io.enq.bits.code.code := packetSop
+            txq.io.enq.bits.code.code := packet.packetSop
           }.otherwise {
-            txq.io.enq.bits.code.code := packetBody
+            txq.io.enq.bits.code.code := packet.packetBody
           }
           count := count + wordSize.U
         }

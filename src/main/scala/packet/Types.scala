@@ -1,8 +1,8 @@
-package chisel.lib.packet
+package packet
 
 import chisel3._
 import chisel3.util._
-import packet.packet._
+import packet._
 
 class PacketCode extends Bundle {
   //val sop :: dat :: eop :: err :: Nil = Enum(4)

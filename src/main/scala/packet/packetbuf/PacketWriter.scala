@@ -1,7 +1,7 @@
 package packet.packetbuf
 
 import chisel.lib.dclib._
-import chisel.lib.packet.PacketData
+import packet.PacketData
 import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._

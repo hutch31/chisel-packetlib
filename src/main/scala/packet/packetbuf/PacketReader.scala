@@ -1,11 +1,10 @@
 package packet.packetbuf
 
 import chisel.lib.dclib._
-import chisel.lib.packet.{PacketCode, PacketData}
+import packet._
 import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
-import packet.packet.{packetBody, packetGoodEop, packetSop}
 
 class PageListEntry(c : BufferConfig) extends Bundle {
   val page = new PageType(c)
@@ -101,7 +100,7 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
   pageList.io.deq.ready := false.B
   length.io.deq.ready := false.B
   metaQueue.io.enq.valid := false.B
-  metaQueue.io.enq.bits.code.code := packetBody
+  metaQueue.io.enq.bits.code.code := packet.packetBody
   metaQueue.io.enq.bits.count := 0.U
 
   // buffer read requests are always from our ID, for the page at the head of the pageList
@@ -144,7 +143,7 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
           txRequestCount := txRequestCount + 1.U
         }
         when (bytesRemaining <= c.WordSize) {
-          metaQueue.io.enq.bits.code.code := packetGoodEop
+          metaQueue.io.enq.bits.code.code := packet.packetGoodEop
           metaQueue.io.enq.bits.count := bytesRemaining - 1.U
           fetchState := fs_idle
           pageList.io.deq.ready := true.B
