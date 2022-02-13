@@ -18,12 +18,24 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <encoding>UTF-8</encoding>
-    <scala.version>2.11.12</scala.version>
-    <scala.compat.version>2.11</scala.compat.version>
+    <scala.version>2.12.10</scala.version>
+    <scala.compat.version>2.12</scala.compat.version>
     <spec2.version>4.2.0</spec2.version>
   </properties>
 
   <dependencies>
+    <dependency>
+        <groupId>javax.xml.bind</groupId>
+        <artifactId>jaxb-api</artifactId>
+        <version>2.3.1</version>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/net.sourceforge.argparse4j/argparse4j -->
+    <dependency>
+        <groupId>net.sourceforge.argparse4j</groupId>
+        <artifactId>argparse4j</artifactId>
+        <version>0.9.0</version>
+    </dependency>
+    
     <dependency>
       <groupId>org.scala-lang</groupId>
       <artifactId>scala-library</artifactId>
@@ -32,22 +44,14 @@
 
     <dependency>
       <groupId>edu.berkeley.cs</groupId>
-      <artifactId>chisel3_2.11</artifactId>
-      <version>3.3.3</version>
+      <artifactId>chisel3_2.12</artifactId>
+      <version>3.4.2</version>
     </dependency>
-
-    <!-- https://mvnrepository.com/artifact/edu.berkeley.cs/chiseltest -->
     <dependency>
-        <groupId>edu.berkeley.cs</groupId>
-        <artifactId>chiseltest_2.11</artifactId>
-        <version>0.3.1</version>
-    </dependency>
-
-    <!-- https://mvnrepository.com/artifact/edu.berkeley.cs/chisel-testers2 -->
-    <dependency>
-        <groupId>edu.berkeley.cs</groupId>
-        <artifactId>chisel-testers2_2.11</artifactId>
-        <version>0.2.2</version>
+      <groupId>edu.berkeley.cs</groupId>
+      <artifactId>chiseltest_2.12</artifactId>
+      <version>0.3.2</version>
+      <scope>test</scope>
     </dependency>
 
     <!-- Test -->
@@ -78,9 +82,33 @@
   </dependencies>
 
   <build>
-    <sourceDirectory>src/main/scala</sourceDirectory>
-    <testSourceDirectory>src/test/scala</testSourceDirectory>
+    <!-- sourceDirectory>src/main/scala</sourceDirectory -->
+    <!-- testSourceDirectory>src/test/scala</testSourceDirectory -->
     <plugins>
+      <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <version>2.4</version>
+          <configuration>
+              <descriptorRefs>
+                  <descriptorRef>jar-with-dependencies</descriptorRef>
+              </descriptorRefs>
+              <archive>
+                  <manifest>
+                      <mainClass>org.ghutchis.codegen.GeneratorMain</mainClass>
+                  </manifest>
+              </archive>
+          </configuration>
+          <executions>
+              <execution>
+                  <phase>package</phase>
+                  <goals>
+                      <goal>single</goal>
+                  </goals>
+              </execution>
+          </executions>
+      </plugin>
+
       <plugin>
         <!-- see http://davidb.github.com/scala-maven-plugin -->
         <groupId>net.alchim31.maven</groupId>
@@ -94,6 +122,7 @@
             </goals>
             <configuration>
               <args>
+                <arg>-Xsource:2.11</arg>
                 <arg>-dependencyfile</arg>
                 <arg>${project.build.directory}/.scala_dependencies</arg>
               </args>

@@ -34,7 +34,8 @@ class BufferMemory(c : BufferConfig) extends Module {
   // collect read and write slot requests and create slot assignments for read/write rings
   wrScheduler.io.slotReqIn := io.wrSlotReqIn
   //io.writeReqOut := new WriteReq(c).Lit(_.valid -> false.B, _.slot -> 0.U, _.page -> 0.U, _.line -> 0.U, _.data -> 0.asTypeOf(Vec(c.WordSize, UInt(8.W))))
-  io.writeReqOut := 0.asTypeOf(new BufferWriteReq(c))
+  io.writeReqOut.valid := false.B
+  io.writeReqOut.bits := 0.asTypeOf(new BufferWriteReq(c))
   io.writeReqOut.bits.slot := wrScheduler.io.writeReqOut
   rdScheduler.io.slotReqIn := io.rdSlotReqIn
   io.readReqOut.valid := false.B

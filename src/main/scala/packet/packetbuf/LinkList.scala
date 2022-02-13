@@ -43,7 +43,7 @@ class LinkListPool(c : BufferConfig) extends Module {
   val s_init :: s_ready :: Nil = Enum(2)
   val state = RegInit(init=s_init)
   val initCount = RegInit(init=0.U(log2Ceil(c.PagePerPool).W))
-  val outq = Module(new Queue(new LinkListReadResp(c), 2))
+  val outq = Module(new Queue(new LinkListReadResp(c), 2).suggestName("LinkListOutputQ"))
   val readValid = RegNext(init=false.B, next=io.readReq.valid)
 
   io.writeReq.ready := false.B

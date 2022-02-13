@@ -65,7 +65,7 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
   val s_init :: s_run :: Nil = Enum(2)
   val state = RegInit(init = s_init)
   val initCount = RegInit(init=0.U(pageBits.W))
-  val freeList = Module(new Queue(UInt(pageBits.W), c.PagePerPool))
+  val freeList = Module(new Queue(UInt(pageBits.W), c.PagePerPool).suggestName("FreeListQueue"))
   val requestIn = DCInput(io.requestIn)
   val returnIn = DCInput(io.returnIn)
   val requestOut = Wire(Decoupled(new PageResp(c)))

@@ -22,21 +22,24 @@ class PacketLineInfo(c : BufferConfig) extends Bundle {
  * @param c  Packet buffer configuration
  * @param id Unique ID for this packet writer, for write slot requests
  */
-class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module {
+class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   val io = IO(new Bundle {
     val portDataIn = Flipped(Decoupled(new PacketData(c.WordSize)))
     val destIn = Flipped(ValidIO(new RoutingResult(c.ReadClients)))
     val interface = new PacketWriterInterface(c)
     val schedOut = new CreditIO(new SchedulerReq(c))
+    val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
 
   val dest = RegEnable(init=0.U, next=io.destIn.bits.getDest(), enable=io.destIn.valid)
   val linkWriteSend = Module(new DCCreditSender(io.interface.linkListWriteReq.bits, c.linkWriteCredit))
   val schedOutSend = Module(new DCCreditSender(io.schedOut.bits, c.schedWriteCredit))
-  val bufferAllocator = Module(new BasicPacketBufferAllocator(c, id))
+  val bufferAllocator = Module(new BasicPacketBufferAllocator(c))
+  bufferAllocator.io.id := io.id
 
   // this queue holds the metadata about the data line to be written (buffer address and line address)
   val lineInfoHold = Module(new Queue(new PacketLineInfo(c), writeBuf))
+  lineInfoHold.desiredName("PacketLineInfoQueue")
   // count number of lines we have used in the current page, used for linking to the next page
   val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
   // output data holding register, this forms part of the write ring
@@ -136,11 +139,11 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
   io.interface.writeReqOut.bits := interfaceOutReg
   lineInfoHold.io.deq.ready := false.B
 
-  when (lineInfoHold.io.deq.valid && !io.interface.writeReqIn.valid && io.interface.writeReqIn.bits.slot === id.U) {
+  when (lineInfoHold.io.deq.valid && !io.interface.writeReqIn.valid && io.interface.writeReqIn.bits.slot === io.id) {
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
     //dataQ.io.deq.ready := true.B
-    interfaceOutReg.slot := id.U
+    interfaceOutReg.slot := io.id;
     interfaceOutReg.data := lineInfoHold.io.deq.bits.data
     interfaceOutReg.line := lineInfoHold.io.deq.bits.line
     interfaceOutReg.page := lineInfoHold.io.deq.bits.page
@@ -152,11 +155,12 @@ class PacketWriter(c: BufferConfig, id : Int, writeBuf : Int = 1) extends Module
 }
 
 
-class BasicPacketBufferAllocator(c : BufferConfig, id : Int) extends Module {
+class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
     val freeListReq = new CreditIO(new PageReq(c))
     val freeListPage = Flipped(new CreditIO(new PageResp(c)))
     val freePage = Decoupled(new PageType(c))
+    val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
   val freeReqSender = Module(new DCCreditSender(io.freeListReq.bits, c.freeListReqCredit))
   val freeRespRx = Module(new DCCreditReceiver(io.freeListPage.bits, c.freeListReqCredit))
@@ -172,12 +176,12 @@ class BasicPacketBufferAllocator(c : BufferConfig, id : Int) extends Module {
 
   // keep number of outstanding requests below the amount of buffer credit available in the receiver
   freeReqSender.io.enq.valid := freePageReqCount < c.freeListReqCredit.U
-  freeReqSender.io.enq.bits.requestor := id.U
+  freeReqSender.io.enq.bits.requestor := io.id
   if (c.NumPools == 1) {
     freeReqSender.io.enq.bits.pool := 0.U // tie off
   } else {
     // when more than one pool is in use, simply rotate requests between pools to statistically share load
-    val curPool = RegInit(init=(id % c.NumPools).U(log2Ceil(c.NumPools).W))
+    val curPool = RegInit(init=io.id)
     freeReqSender.io.enq.bits.pool := curPool
     when (freeReqSender.io.enq.valid) {
       when (curPool === (c.NumPools-1).U) {
