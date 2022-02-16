@@ -1,77 +1,39 @@
 module bench;
   reg clock;
-  reg reset;
-  reg io_sendPacket_valid;
-  reg [15:0] io_sendPacket_bits_length;
-  reg [15:0] io_sendPacket_bits_pid;
-  reg 	     io_sendPacket_bits_packetGood;
-  
+  reg reset;  
 
   /*AUTOWIRE*/
-  // Beginning of automatic wires (for undeclared instantiated-module outputs)
-  wire			io_error;		// From pwt of PacketWriterTestbench.v
-  wire			io_sendPacket_ready;	// From pwt of PacketWriterTestbench.v
-  wire [8:0]		io_writePageCount_bits;	// From pwt of PacketWriterTestbench.v
-  wire			io_writePageCount_valid;// From pwt of PacketWriterTestbench.v
-  wire [7:0]		io_writeReqOut_bits_data_0;// From pwt of PacketWriterTestbench.v
-  wire [7:0]		io_writeReqOut_bits_data_1;// From pwt of PacketWriterTestbench.v
-  wire [1:0]		io_writeReqOut_bits_line;// From pwt of PacketWriterTestbench.v
-  wire [1:0]		io_writeReqOut_bits_page_pageNum;// From pwt of PacketWriterTestbench.v
-  wire			io_writeReqOut_bits_slot;// From pwt of PacketWriterTestbench.v
-  wire			io_writeReqOut_valid;	// From pwt of PacketWriterTestbench.v
-  // End of automatics
-  
-  PacketWriterTestbench pwt
-    (/*AUTOINST*/
-     // Outputs
-     .io_sendPacket_ready		(io_sendPacket_ready),
-     .io_writeReqOut_valid		(io_writeReqOut_valid),
-     .io_writeReqOut_bits_slot		(io_writeReqOut_bits_slot),
-     .io_writeReqOut_bits_page_pageNum	(io_writeReqOut_bits_page_pageNum[1:0]),
-     .io_writeReqOut_bits_line		(io_writeReqOut_bits_line[1:0]),
-     .io_writeReqOut_bits_data_0	(io_writeReqOut_bits_data_0[7:0]),
-     .io_writeReqOut_bits_data_1	(io_writeReqOut_bits_data_1[7:0]),
-     .io_error				(io_error),
-     .io_writePageCount_valid		(io_writePageCount_valid),
-     .io_writePageCount_bits		(io_writePageCount_bits[8:0]),
-     // Inputs
-     .clock				(clock),
-     .reset				(reset),
-     .io_sendPacket_valid		(io_sendPacket_valid),
-     .io_sendPacket_bits_length		(io_sendPacket_bits_length[15:0]),
-     .io_sendPacket_bits_pid		(io_sendPacket_bits_pid[15:0]),
-     .io_sendPacket_bits_packetGood	(io_sendPacket_bits_packetGood));
 
-  always
-    begin
-      clock = 0;
-      #5;
-      clock = 1;
-      #5;
-    end
+  /* FlatPacketBuffer AUTO_TEMPLATE
+   (
+   .io_buf_writeReqOut_\(.*\) (writeRing1_\1[]),
+   .io_buf_writeReqIn_\(.*\)  (writeRing0_\1[]),
+   );
+   */
+  FlatPacketBuffer buffer
+    (/*AUTOINST*/);
 
-  initial
-    begin
-      $dumpfile("testbench.vcd");
-      $dumpvars;
-      reset = 1;
-      io_sendPacket_valid = 0;
-      io_sendPacket_bits_length = 0;
-      io_sendPacket_bits_pid = 0;
-      io_sendPacket_bits_packetGood = 1;
-      
-      @(negedge clock);
-      reset = 0;
-      @(negedge clock);
-      io_sendPacket_valid = 1;
-      io_sendPacket_bits_length = 128;
-      @(negedge clock);
-      io_sendPacket_valid = 0;
-      #5000;
-      $finish;
-    end
+/*  PacketWriter AUTO_TEMPLATE
+ (
+ .io_id (2'd@),
+ .io_interface_writeReqOut_\(.*\) (writeRing@_\1[]),
+ .io_interface_writeReqIn_\(.*\) (writeRing@"(+ @ 1)"_\1[]),
+ );
+ */
+  PacketWriter writer0
+    (/*AUTOINST*/);
+
+/*  PacketReader AUTO_TEMPLATE
+ (
+ .io_id (2'd@),
+ .io_interface_bufferReadResp_bits_data_\([0-9]+\)      (io_buf_readRespOut_bits_data_\1[]),
+ .io_buf_readRespOut_bits_req_line (io_interface_bufferReadResp_bits_req_line[1:0]),
+ );
+ */
+  PacketReader reader0
+    (/*AUTOINST*/);
   
 endmodule // bench
 // Local Variables:
-// verilog-library-directories:("..")
+// verilog-library-directories:("." "generated")
 // End:

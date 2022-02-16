@@ -24,6 +24,7 @@ class DCCreditSender[D <: Data](data: D, maxCredit: Int) extends Module {
     val curCredit = Output(UInt(log2Ceil(maxCredit).W))
   })
   require(maxCredit >= 1)
+  override def desiredName: String = "DCCreditSender_" + data.toString
 
   val icredit = RegNext(io.deq.credit)
   val curCredit = RegInit(init=maxCredit.U)
@@ -47,6 +48,7 @@ class DCCreditReceiver[D <: Data](data: D, maxCredit: Int) extends Module {
     val fifoCount = Output(UInt(log2Ceil(maxCredit+1).W))
   })
   require(maxCredit >= 1)
+  override def desiredName: String = "DCCreditReceiver_" + data.toString
 
   val ivalid = RegNext(io.enq.valid)
   val idata = RegNext(io.enq.bits)

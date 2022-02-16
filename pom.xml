@@ -116,7 +116,10 @@
         <version>3.3.2</version>
         <executions>
           <execution>
+            <id>scala-compile-first</id>
+            <phase>process-resources</phase>
             <goals>
+              <goal>add-source</goal>
               <goal>compile</goal>
               <goal>testCompile</goal>
             </goals>

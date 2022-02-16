@@ -133,11 +133,12 @@ class PacketWriterTester extends FlatSpec with ChiselScalatestTester with Matche
   ignore should "request pages from pools" in {
     val pagePerPool = 32
     val conf = new BufferConfig(4, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2)
-    test(new BasicPacketBufferAllocator(conf, 0)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    test(new BasicPacketBufferAllocator(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.freeListReq.credit.poke(false.B)
         c.clock.step(1)
         c.io.freeListReq.valid.expect(true.B)
+        c.io.id.poke(0.U)
 
         for (i <- 0 to 31) {
           c.io.freeListPage.valid.poke(true.B)

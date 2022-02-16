@@ -10,7 +10,7 @@ import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
 
 class PacketReaderTester extends FlatSpec with ChiselScalatestTester with Matchers {
-  ignore should "request pages after getting descriptor" in {
+  it should "request pages after getting descriptor" in {
     val pagePerPool = 32
     val requestor = 1
     val LinesPerPage = 4

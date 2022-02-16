@@ -39,7 +39,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // this queue holds the metadata about the data line to be written (buffer address and line address)
   val lineInfoHold = Module(new Queue(new PacketLineInfo(c), writeBuf))
-  lineInfoHold.desiredName("PacketLineInfoQueue")
+  //lineInfoHold.desiredName("PacketLineInfoQueue")
   // count number of lines we have used in the current page, used for linking to the next page
   val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
   // output data holding register, this forms part of the write ring

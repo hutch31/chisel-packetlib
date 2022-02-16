@@ -1,7 +1,7 @@
 
 // Only needed if not organized according to the sbt standard
 //unmanagedSourceDirectories in Compile += "ip/src"
-Compile / unmanagedSourceDirectories += baseDirectory.value / "ip" / "src" / "main" / "scala" / "chisel" / "lib" / "dclib"
+//Compile / unmanagedSourceDirectories += baseDirectory.value / "ip" / "src" / "main" / "scala" / "chisel" / "lib" / "dclib"
 
 // This is the latest release from UCB
 // libraryDependencies += "edu.berkeley.cs" %% "chisel3" % "latest.release"
