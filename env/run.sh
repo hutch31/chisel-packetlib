@@ -1,3 +1,3 @@
-iverilog bench.v ../PacketWriterTestbench.v
-vvp ./a.out
+iverilog bench.v dataInDriver.v dataOutDriver.v generated/FlatPacketBufferComplex.v
+./a.out
 
