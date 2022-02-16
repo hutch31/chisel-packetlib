@@ -1,0 +1,12 @@
+<PacketBufferGeneration>
+  <BufferConfig>
+    <NumPools>1</NumPools>
+    <PagePerPool>32</PagePerPool>
+    <WordSize>8</WordSize>
+    <LinesPerPage>4</LinesPerPage>
+    <ReadClients>4</ReadClients>
+    <WriteClients>4</WriteClients>
+    <MTU>1024</MTU>
+    <credit>2</credit>
+  </BufferConfig>
+</PacketBufferGeneration>
