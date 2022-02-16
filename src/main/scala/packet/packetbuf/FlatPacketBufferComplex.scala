@@ -17,16 +17,25 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   val scheduler = Module(new DirectScheduler(c))
 
   for (i <- 0 until c.WriteClients) {
+    writers(i).io.id := i.U
     buffer.io.writerInterface(i) <> writers(i).io.interface
     writers(i).io.portDataIn <> io.portDataIn(i)
     writers(i).io.destIn <> io.destIn(i)
     writers(i).io.schedOut <> scheduler.io.schedIn(i)
+    if (i == c.WriteClients-1) {
+      writers(i).io.writeReqIn := buffer.io.writeReqOut
+    } else {
+      writers(i).io.writeReqIn := writers(i+1).io.writeReqOut
+    }
   }
+  buffer.io.writeReqIn := writers(0).io.writeReqOut
 
   for (i <- 0 until c.ReadClients) {
+    readers(i).io.id := i.U
     buffer.io.readerInterface(i) <> readers(i).io.interface
     readers(i).io.portDataOut <> io.portDataOut(i)
     readers(i).io.schedIn <> scheduler.io.schedOut(i)
+    readers(i).io.bufferReadResp := buffer.io.readRespOut
   }
 }
 
