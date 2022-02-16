@@ -1,31 +1,53 @@
 package packet.packetbuf
 
-import chisel.lib.dclib.{DCArbiter, DCCreditReceiver, DCCreditSender, DCDemux}
+import chisel.lib.dclib.{CreditIO, DCArbiter, DCCreditReceiver, DCCreditSender, DCCrossbar, DCDemux}
 import chisel3._
+import chisel3.util.{Decoupled, ValidIO}
+import packet.PacketData
 
 class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
-
+    val portDataOut = Vec(c.ReadClients, Decoupled(new PacketData(c.WordSize)))
+    val portDataIn = Vec(c.WriteClients, Flipped(Decoupled(new PacketData(c.WordSize))))
+    val destIn = Vec(c.WriteClients, Flipped(ValidIO(new RoutingResult(c.ReadClients))))
   })
-  val buffer = Module(new FlatPacketBuffer(c))
-  val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
+  val readers = for (i <- 0 until c.WriteClients) yield Module(new PacketReader(c))
   val writers = for (i <- 0 until c.WriteClients) yield Module(new PacketWriter(c))
-  val reqMux = Module(new DCArbiter(new LinkListReadReq(c), c.WriteClients, false))
-  val respDemux = Module(new DCDemux(new LinkListReadResp(c), c.WriteClients))
+  val buffer = Module(new FlatPacketBuffer(c))
+  val scheduler = Module(new DirectScheduler(c))
 
   for (i <- 0 until c.WriteClients) {
-    // Create DC credit senders and receivers to convert ready/valid interface to credit
-    val freeReqReceiver = Module(new DCCreditReceiver(new LinkListReadReq(c), c.credit))
-    val freeRespSender = Module(new DCCreditSender(new LinkListReadResp(c), c.credit))
+    buffer.io.writerInterface(i) <> writers(i).io.interface
+    writers(i).io.portDataIn <> io.portDataIn(i)
+    writers(i).io.destIn <> io.destIn(i)
+    writers(i).io.schedOut <> scheduler.io.schedIn(i)
+  }
 
-    if (i == c.WriteClients-1) {
-      writers(i).io.interface.writeReqIn := buffer.io.buf.writeReqOut
-    } else {
-      writers(i).io.interface.writeReqIn := writers(i + 1).io.interface.writeReqOut
-    }
-    buffer.io.free.freeRequestIn(i) <> freeReqReceiver.io.deq
-    writers(i).io.interface.freeListReq <> freeReqReceiver.io.enq
-    buffer.io.free.freeRequestOut(i) <> freeRespSender.io.enq
-    writers(i).io.interface.freeListPage <> freeRespSender.io.deq
+  for (i <- 0 until c.ReadClients) {
+    buffer.io.readerInterface(i) <> readers(i).io.interface
+    readers(i).io.portDataOut <> io.portDataOut(i)
+    readers(i).io.schedIn <> scheduler.io.schedOut(i)
+  }
+}
+
+// Basic "scheduler" takes requests from source and sends them to their requested destination
+class DirectScheduler(c : BufferConfig) extends Module {
+  val io = IO(new Bundle {
+    val schedIn = Vec(c.WriteClients, Flipped(new CreditIO(new SchedulerReq(c))))
+    val schedOut = Vec(c.ReadClients, new CreditIO(new SchedulerReq(c)))
+  })
+  val credRx = for (i <- 0 until c.WriteClients) yield Module(new DCCreditReceiver(new SchedulerReq(c), c.credit))
+  val credTx = for (i <- 0 until c.ReadClients) yield Module(new DCCreditSender(new SchedulerReq(c), c.credit))
+  var xbar = Module(new DCCrossbar(new SchedulerReq(c), inputs=c.WriteClients, outputs=c.ReadClients))
+
+  for (i <- 0 until c.WriteClients) {
+    io.schedIn(i) <> credRx(i).io.enq
+    credRx(i).io.deq <> xbar.io.c(i)
+    xbar.io.sel(i) := credRx(i).io.deq.bits.dest
+  }
+
+  for (i <- 0 until c.ReadClients) {
+    io.schedOut(i) <> credTx(i).io.deq
+    credTx(i).io.enq <> xbar.io.p(i)
   }
 }

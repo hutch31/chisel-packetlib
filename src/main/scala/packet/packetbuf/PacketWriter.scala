@@ -27,6 +27,8 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     val portDataIn = Flipped(Decoupled(new PacketData(c.WordSize)))
     val destIn = Flipped(ValidIO(new RoutingResult(c.ReadClients)))
     val interface = new PacketWriterInterface(c)
+    val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
+    val writeReqOut = ValidIO(new BufferWriteReq(c))
     val schedOut = new CreditIO(new SchedulerReq(c))
     val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
@@ -43,7 +45,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   // count number of lines we have used in the current page, used for linking to the next page
   val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
   // output data holding register, this forms part of the write ring
-  val interfaceOutReg = Reg(io.interface.writeReqOut.bits.cloneType)
+  val interfaceOutReg = Reg(io.writeReqOut.bits.cloneType)
   val interfaceOutValid = RegInit(false.B)
   // small queue for holding data between accepting it from portDataIn and sending on the ring
   //val dataQ = Module(new Queue(new PacketData(c.WordSize), writeBuf))
@@ -135,11 +137,11 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // Insert the data from portDataIn on to the ring, waiting for our slot number to come up
   //dataQ.io.deq.ready := false.B
-  io.interface.writeReqOut.valid := interfaceOutValid
-  io.interface.writeReqOut.bits := interfaceOutReg
+  io.writeReqOut.valid := interfaceOutValid
+  io.writeReqOut.bits := interfaceOutReg
   lineInfoHold.io.deq.ready := false.B
 
-  when (lineInfoHold.io.deq.valid && !io.interface.writeReqIn.valid && io.interface.writeReqIn.bits.slot === io.id) {
+  when (lineInfoHold.io.deq.valid && !io.writeReqIn.valid && io.writeReqIn.bits.slot === io.id) {
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
     //dataQ.io.deq.ready := true.B
@@ -149,8 +151,8 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     interfaceOutReg.page := lineInfoHold.io.deq.bits.page
   }.otherwise {
     // if not for us, simply forward data around the ring
-    interfaceOutValid := io.interface.writeReqIn.valid
-    interfaceOutReg := io.interface.writeReqIn.bits
+    interfaceOutValid := io.writeReqIn.valid
+    interfaceOutReg := io.writeReqIn.bits
   }
 }
 

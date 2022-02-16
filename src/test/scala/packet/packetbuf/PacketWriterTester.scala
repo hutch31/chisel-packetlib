@@ -9,6 +9,7 @@ import chiseltest.experimental.TestOptionBuilder._
 import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
 
+/*
 class StubStatistics(c : BufferConfig) extends Bundle {
   val writePageCount = UInt(log2Ceil(c.maxPagePerPacket).W)
   val writeLineCount = UInt(log2Ceil(c.MTU).W)
@@ -158,3 +159,4 @@ class PacketWriterTester extends FlatSpec with ChiselScalatestTester with Matche
     }
   }
 }
+*/

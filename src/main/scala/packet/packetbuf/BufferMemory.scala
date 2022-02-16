@@ -8,7 +8,7 @@ import chisel3.util._
 
 class BufferMemoryIO(c : BufferConfig) extends Bundle {
   val wrSlotReqIn = Input(Vec(c.WriteClients, Bool()))
-  val rdSlotReqIn = Input(Vec(c.WriteClients, Bool()))
+  //val rdSlotReqIn = Input(Vec(c.WriteClients, Bool()))
   val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
   val writeReqOut = ValidIO(new BufferWriteReq(c))
   val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
@@ -22,7 +22,7 @@ class BufferMemory(c : BufferConfig) extends Module {
   val io = IO(new BufferMemoryIO(c))
 
   val wrScheduler = Module(new RingScheduler(c.WriteClients))
-  val rdScheduler = Module(new RingScheduler(c.ReadClients))
+  //val rdScheduler = Module(new RingScheduler(c.ReadClients))
   val memPools = for (p <- 0 until c.NumPools) yield Module(new BufferMemoryPool(c))
 
   val valid = Bool()
@@ -37,7 +37,7 @@ class BufferMemory(c : BufferConfig) extends Module {
   io.writeReqOut.valid := false.B
   io.writeReqOut.bits := 0.asTypeOf(new BufferWriteReq(c))
   io.writeReqOut.bits.slot := wrScheduler.io.writeReqOut
-  rdScheduler.io.slotReqIn := io.rdSlotReqIn
+  //rdScheduler.io.slotReqIn := io.rdSlotReqIn
   io.readReqOut.valid := false.B
   io.readReqOut.bits := 0.asTypeOf(new BufferReadReq(c))
 

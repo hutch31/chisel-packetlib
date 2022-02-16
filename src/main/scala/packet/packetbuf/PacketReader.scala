@@ -23,6 +23,7 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
     val id = Input(UInt(log2Ceil(c.ReadClients).W))
     val portDataOut = Decoupled(new PacketData(c.WordSize))
     val interface = new PacketReaderInterface(c)
+    val bufferReadResp = Flipped(ValidIO(new BufferReadResp(c)))
     val schedIn = Flipped(new CreditIO(new SchedulerReq(c)))
     val pageLinkError = Output(Bool())
   })
@@ -169,11 +170,11 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
 
   // metadata for the output queue is prepared and ready once data arrives from the packet buffer.
   // Once data arrives, join the data request with the prepared metadata and place it in the output queue
-  txq.io.enq.valid := io.interface.bufferReadResp.valid & io.interface.bufferReadResp.bits.req.requestor === io.id
+  txq.io.enq.valid := io.bufferReadResp.valid & io.bufferReadResp.bits.req.requestor === io.id
   metaQueue.io.deq.ready := txq.io.enq.valid
   txq.io.enq.bits.code.code := metaQueue.io.deq.bits.code.code
   txq.io.enq.bits.count := metaQueue.io.deq.bits.count
-  txq.io.enq.bits.data := io.interface.bufferReadResp.bits.data
+  txq.io.enq.bits.data := io.bufferReadResp.bits.data
 
   io.portDataOut <> txq.io.deq
 }

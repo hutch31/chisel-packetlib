@@ -86,8 +86,6 @@ class PacketWriterInterface(c: BufferConfig) extends Bundle {
   val linkListWriteReq = new CreditIO(new LinkListWriteReq(c))
   // Connection to page write ring
   val writeSlotReq = Output(Bool())
-  val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
-  val writeReqOut = ValidIO(new BufferWriteReq(c))
   override def cloneType =
     new PacketWriterInterface(c).asInstanceOf[this.type]
 }
@@ -100,7 +98,6 @@ class PacketReaderInterface(c: BufferConfig) extends Bundle {
   val freeListReturn = new CreditIO(new PageType(c))
   // Buffer read request and response
   val bufferReadReq = new CreditIO(new BufferReadReq(c))
-  val bufferReadResp = Flipped(ValidIO(new BufferReadResp(c)))
   override def cloneType =
     new PacketReaderInterface(c).asInstanceOf[this.type]
 }

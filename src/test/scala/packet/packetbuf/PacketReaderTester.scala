@@ -50,11 +50,11 @@ class PacketReaderTester extends FlatSpec with ChiselScalatestTester with Matche
           c.io.interface.bufferReadReq.bits.line.expect(i.U)
 
           // send the page response back, and a request credit
-          c.io.interface.bufferReadResp.valid.poke(true.B)
-          c.io.interface.bufferReadResp.bits.req.requestor.poke(requestor.U)
+          c.io.bufferReadResp.valid.poke(true.B)
+          c.io.bufferReadResp.bits.req.requestor.poke(requestor.U)
           c.io.interface.bufferReadReq.credit.poke(true.B)
           c.clock.step(1)
-          c.io.interface.bufferReadResp.valid.poke(false.B)
+          c.io.bufferReadResp.valid.poke(false.B)
           c.io.interface.bufferReadReq.credit.poke(false.B)
 
           // wait for the page data to be written to the client

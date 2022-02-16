@@ -11,25 +11,40 @@ class LinkList(c : BufferConfig) extends Module {
     val readReq = Vec(c.ReadClients, Flipped(Decoupled(new LinkListReadReq(c))))
     val readResp = Vec(c.ReadClients, Decoupled(new LinkListReadResp(c)))
   })
-  val writeXbar = Module(new DCCrossbar(new LinkListWriteReq(c), inputs = c.WriteClients, outputs = c.NumPools))
-  val readReqXbar = Module(new DCCrossbar(new LinkListReadReq(c), inputs = c.ReadClients, outputs = c.NumPools))
-  val readRespXbar = Module(new DCCrossbar(new LinkListReadResp(c), inputs = c.NumPools, outputs = c.ReadClients))
-  val lpool = for (i <- 0 until c.NumPools) yield Module(new LinkListPool(c))
+  if (c.NumPools == 1) {
+    val lpool = Module(new LinkListPool(c))
+    val writeReqArb = Module(new DCArbiter(new LinkListWriteReq(c), c.WriteClients, false))
+    val readReqArb = Module(new DCArbiter(new LinkListReadReq(c), c.ReadClients, false))
+    val readDemux = Module(new DCDemux(new LinkListReadResp(c), c.ReadClients))
 
-  io.writeReq <> writeXbar.io.c
-  for (i <- 0 until c.WriteClients) {
-    writeXbar.io.sel(i) := io.writeReq(i).bits.addr.pool
-  }
-  io.readReq <> readReqXbar.io.c
-  for (i <- 0 until c.ReadClients) {
-    readReqXbar.io.sel(i) := io.readReq(i).bits.addr.pool
-  }
-  readRespXbar.io.p <> io.readResp
-  for (i <- 0 until c.NumPools) {
-    writeXbar.io.p(i) <> lpool(i).io.writeReq
-    readReqXbar.io.p(i) <> lpool(i).io.readReq
-    readRespXbar.io.sel(i) := lpool(i).io.readResp.bits.requestor
-    readRespXbar.io.c(i) <> lpool(i).io.readResp
+    writeReqArb.io.c <> io.writeReq
+    writeReqArb.io.p <> lpool.io.writeReq
+    readReqArb.io.c <> io.readReq
+    lpool.io.readReq <> readReqArb.io.p
+    lpool.io.readResp <> readDemux.io.c
+    readDemux.io.sel := lpool.io.readResp.bits.requestor
+    io.readResp <> readDemux.io.p
+  } else {
+    val writeXbar = Module(new DCCrossbar(new LinkListWriteReq(c), inputs = c.WriteClients, outputs = c.NumPools))
+    val readReqXbar = Module(new DCCrossbar(new LinkListReadReq(c), inputs = c.ReadClients, outputs = c.NumPools))
+    val readRespXbar = Module(new DCCrossbar(new LinkListReadResp(c), inputs = c.NumPools, outputs = c.ReadClients))
+    val lpool = for (i <- 0 until c.NumPools) yield Module(new LinkListPool(c))
+
+    io.writeReq <> writeXbar.io.c
+    for (i <- 0 until c.WriteClients) {
+      writeXbar.io.sel(i) := io.writeReq(i).bits.addr.pool
+    }
+    io.readReq <> readReqXbar.io.c
+    for (i <- 0 until c.ReadClients) {
+      readReqXbar.io.sel(i) := io.readReq(i).bits.addr.pool
+    }
+    readRespXbar.io.p <> io.readResp
+    for (i <- 0 until c.NumPools) {
+      writeXbar.io.p(i) <> lpool(i).io.writeReq
+      readReqXbar.io.p(i) <> lpool(i).io.readReq
+      readRespXbar.io.sel(i) := lpool(i).io.readResp.bits.requestor
+      readRespXbar.io.c(i) <> lpool(i).io.readResp
+    }
   }
 }
 
@@ -66,7 +81,9 @@ class LinkListPool(c : BufferConfig) extends Module {
     }
   }
 
-  outq.io.enq.bits := mem.read(io.readReq.bits.addr.pageNum, io.readReq.valid)
+  outq.io.enq.bits.data := mem.read(io.readReq.bits.addr.pageNum, io.readReq.valid)
+  // use one cycle delayed requestor
+  outq.io.enq.bits.requestor := RegEnable(next=io.readReq.bits.requestor, enable=io.readReq.valid)
   outq.io.enq.valid := readValid
   io.readResp <> outq.io.deq
 }

@@ -61,11 +61,12 @@ public class GeneratorMain {
         ChiselStage stage = new ChiselStage();
         String[] buildArgs = {"--target-dir", "generated"};
 
-        stage.emitVerilog(() -> { return new FlatPacketBuffer(bconf); } , buildArgs, stage.emitVerilog$default$3());
+		stage.emitVerilog(() -> { return new FlatPacketBufferComplex(bconf); } , buildArgs, stage.emitVerilog$default$3());
+        //stage.emitVerilog(() -> { return new FlatPacketBuffer(bconf); } , buildArgs, stage.emitVerilog$default$3());
 
-		stage.emitVerilog(() -> { return new PacketReader(bconf, 2); } , buildArgs, stage.emitVerilog$default$3());
+		//stage.emitVerilog(() -> { return new PacketReader(bconf, 2); } , buildArgs, stage.emitVerilog$default$3());
 
-		stage.emitVerilog(() -> { return new PacketWriter(bconf, 1); } , buildArgs, stage.emitVerilog$default$3());
+		//stage.emitVerilog(() -> { return new PacketWriter(bconf, 1); } , buildArgs, stage.emitVerilog$default$3());
 
 		//String result = chisel3.Driver.emitVerilog(() -> {
         //    FlatPacketBuffer conf = new FlatPacketBuffer(bconf);
