@@ -8,13 +8,16 @@ import chisel3.util._
 class PacketRequest extends Bundle {
   val length = UInt(16.W)
   val pid = UInt(16.W)
+  val src = UInt(8.W)
+  val dst = UInt(8.W)
   val packetGood = Bool()
 }
 
-class PacketSender(wordSize : Int) extends Module {
+class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
   val io = IO(new Bundle {
     val packetData = Decoupled(new PacketData(wordSize))
     val sendPacket = Flipped(Decoupled(new PacketRequest))
+    val destIn = ValidIO(new RoutingResult(ReadClients))
   })
   // latch incoming packet send requests
   val info = Module(new Queue(new PacketRequest, 4))
@@ -29,19 +32,35 @@ class PacketSender(wordSize : Int) extends Module {
   txq.io.enq.valid := false.B
   txq.io.enq.bits := 0.asTypeOf(new PacketData(wordSize))
 
+  io.destIn.valid := false.B
+  io.destIn.bits.dest := io.sendPacket.bits.dst
+
   switch (state) {
     is (s_idle) {
       when (info.io.deq.valid) {
         count := 0.U
         state := s_packet
+        io.destIn.valid := true.B
       }
     }
 
     is (s_packet) {
       txq.io.enq.valid := true.B
       when(txq.io.enq.ready) {
-        for (i <- 0 to wordSize - 1) {
-          txq.io.enq.bits.data(i) := count + i.U
+        when (count === 0.U) {
+          for (i <- 0 to wordSize - 1) {
+            i match {
+              case 0 => txq.io.enq.bits.data(i) := info.io.deq.bits.pid(15,8)
+              case 1 => txq.io.enq.bits.data(i) := info.io.deq.bits.pid(7, 0)
+              case 2 => txq.io.enq.bits.data(i) := info.io.deq.bits.src
+              case 3 => txq.io.enq.bits.data(i) := info.io.deq.bits.dst
+              case _ => txq.io.enq.bits.data(i) := count + i.U
+            }
+          }
+        }.otherwise {
+          for (i <- 0 to wordSize - 1) {
+            txq.io.enq.bits.data(i) := count + i.U
+          }
         }
         when(count + wordSize.U >= info.io.deq.bits.length) {
           txq.io.enq.bits.count := info.io.deq.bits.length - count - 1.U
@@ -66,3 +85,50 @@ class PacketSender(wordSize : Int) extends Module {
     }
   }
 }
+
+class PacketReceiver(wordSize : Int, senders: Int) extends Module {
+  val io = IO(new Bundle {
+    val packetData = Flipped(Decoupled(new PacketData(wordSize)))
+    val sendPacket = Flipped(Decoupled(new PacketRequest))
+    val error = Output(Bool())
+  })
+  val pidQueue = for (i <- 0 until senders) yield Module(new Queue(new PacketRequest, 8))
+  val queueData = Wire(Vec(senders, new PacketRequest))
+  val queueReady = Wire(UInt(8.W))
+  val pidQueueValid = Wire(UInt(senders.W))
+  val packetId = Wire(UInt(16.W))
+  val packetSrc = Wire(UInt(8.W))
+  val packetDst = Wire(UInt(8.W))
+
+  io.packetData.ready := true.B
+
+  io.sendPacket.ready := true.B
+  for (i <- 0 until senders) {
+    pidQueue(i).io.enq.valid := pidQueueValid(i)
+    pidQueue(i).io.deq.ready := queueReady(i)
+    pidQueue(i).io.enq.bits := io.sendPacket.bits
+    queueData(i) := pidQueue(i).io.deq.bits
+  }
+  when (io.sendPacket.valid) {
+    pidQueueValid := 1.U << io.sendPacket.bits.src
+  }.otherwise {
+    pidQueueValid := 0.U
+  }
+
+  packetId := Cat(io.packetData.bits.data(0), io.packetData.bits.data(1))
+  packetSrc := io.packetData.bits.data(2)
+  packetDst := io.packetData.bits.data(3)
+
+  when (io.packetData.valid) {
+    queueReady := 1.U << packetSrc
+    when (packetId =/= queueData(packetSrc).pid || packetDst =/= queueData(packetSrc).dst) {
+      io.error := true.B
+    }.otherwise {
+      io.error := false.B
+    }
+  }.otherwise {
+    io.error := false.B
+    queueReady := 0.U
+  }
+}
+
