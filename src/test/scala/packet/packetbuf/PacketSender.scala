@@ -33,11 +33,11 @@ class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
   txq.io.enq.bits := 0.asTypeOf(new PacketData(wordSize))
 
   io.destIn.valid := false.B
-  io.destIn.bits.dest := io.sendPacket.bits.dst
+  io.destIn.bits.dest := info.io.deq.bits.dst
 
   switch (state) {
     is (s_idle) {
-      when (info.io.deq.valid) {
+      when (info.io.deq.valid && txq.io.count === 0.U) {
         count := 0.U
         state := s_packet
         io.destIn.valid := true.B
@@ -91,6 +91,7 @@ class PacketReceiver(wordSize : Int, senders: Int) extends Module {
     val packetData = Flipped(Decoupled(new PacketData(wordSize)))
     val sendPacket = Flipped(Decoupled(new PacketRequest))
     val error = Output(Bool())
+    val expQueueEmpty = Output(Bool())
   })
   val pidQueue = for (i <- 0 until senders) yield Module(new Queue(new PacketRequest, 8))
   val queueData = Wire(Vec(senders, new PacketRequest))
@@ -99,8 +100,10 @@ class PacketReceiver(wordSize : Int, senders: Int) extends Module {
   val packetId = Wire(UInt(16.W))
   val packetSrc = Wire(UInt(8.W))
   val packetDst = Wire(UInt(8.W))
+  val queueEmpty = Wire(Vec(senders, Bool()))
 
   io.packetData.ready := true.B
+  io.expQueueEmpty := Cat(queueEmpty).andR()
 
   io.sendPacket.ready := true.B
   for (i <- 0 until senders) {
@@ -108,6 +111,7 @@ class PacketReceiver(wordSize : Int, senders: Int) extends Module {
     pidQueue(i).io.deq.ready := queueReady(i)
     pidQueue(i).io.enq.bits := io.sendPacket.bits
     queueData(i) := pidQueue(i).io.deq.bits
+    queueEmpty(i) := pidQueue(i).io.count === 0.U
   }
   when (io.sendPacket.valid) {
     pidQueueValid := 1.U << io.sendPacket.bits.src
@@ -119,7 +123,7 @@ class PacketReceiver(wordSize : Int, senders: Int) extends Module {
   packetSrc := io.packetData.bits.data(2)
   packetDst := io.packetData.bits.data(3)
 
-  when (io.packetData.valid) {
+  when (io.packetData.valid && io.packetData.bits.code.isSop()) {
     queueReady := 1.U << packetSrc
     when (packetId =/= queueData(packetSrc).pid || packetDst =/= queueData(packetSrc).dst) {
       io.error := true.B

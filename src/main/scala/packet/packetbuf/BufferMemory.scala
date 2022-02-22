@@ -25,11 +25,11 @@ class BufferMemory(c : BufferConfig) extends Module {
   //val rdScheduler = Module(new RingScheduler(c.ReadClients))
   val memPools = for (p <- 0 until c.NumPools) yield Module(new BufferMemoryPool(c))
 
-  val valid = Bool()
-  val slot = UInt(log2Ceil(c.WriteClients).W)
-  val page = new PageType(c)
-  val line = UInt(log2Ceil(c.LinesPerPage).W)
-  val data = Vec(c.WordSize, UInt(8.W))
+  //val valid = Bool()
+  //val slot = UInt(log2Ceil(c.WriteClients).W)
+  //val page = new PageType(c)
+  //val line = UInt(log2Ceil(c.LinesPerPage).W)
+  //val data = Vec(c.WordSize, UInt(8.W))
 
   // collect read and write slot requests and create slot assignments for read/write rings
   wrScheduler.io.slotReqIn := io.wrSlotReqIn
@@ -70,18 +70,21 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
   val mem = SyncReadMem(c.LinesPerPage*c.PagePerPool, Vec(c.WordSize, UInt(8.W)))
   val memWrAddr = Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
   val memRdAddr = Cat(io.readReqIn.bits.page.pageNum, io.readReqIn.bits.line)
-  val readReqDelay = RegNext(next=io.readReqIn)
-  val readRespOut = Reg(ValidIO(new BufferReadResp(c)))
+  //val readReqDelay = RegNext(next=io.readReqIn)
+  //val readRespOut = Reg(ValidIO(new BufferReadResp(c)))
 
   when (io.writeReqIn.valid) {
     mem.write(memWrAddr, io.writeReqIn.bits.data)
   }
-  when (io.readReqIn.valid) {
-    readRespOut.bits.data := mem.read(memRdAddr)
-    readRespOut.bits.req := io.readReqIn.bits
-  }
-  readRespOut.valid := io.readReqIn.valid
-  io.readRespOut := readRespOut
+  io.readRespOut.bits.data := mem.read(memRdAddr, io.readReqIn.valid)
+  io.readRespOut.bits.req  := RegEnable(next=io.readReqIn.bits, enable=io.readReqIn.valid)
+  io.readRespOut.valid     := RegNext(next=io.readReqIn.valid)
+  //when (io.readReqIn.valid) {
+  //  readRespOut.bits.data := mem.read(memRdAddr)
+  //  readRespOut.bits.req := io.readReqIn.bits
+  //}
+  //readRespOut.valid := io.readReqIn.valid
+  //io.readRespOut := readRespOut
 }
 
 /**
@@ -95,7 +98,7 @@ class RingScheduler(clients : Int, countSize : Int = 4) extends Module {
     val slotReqIn = Input(Vec(clients, Bool()))
     val writeReqOut = Output(UInt(log2Ceil(clients).W))
   })
-  val slotReqCount = Reg(Vec(clients, UInt(countSize.W)))
+  val slotReqCount = RegInit(init=0.asTypeOf(Vec(clients, UInt(countSize.W))))
   val countPos = Wire(Vec(clients, Bool()))
   val nextSlot = PriorityEncoder(Cat(countPos.reverse))
 
@@ -103,7 +106,7 @@ class RingScheduler(clients : Int, countSize : Int = 4) extends Module {
     countPos(i) := slotReqCount(i) =/= 0.U
     when (io.slotReqIn(i) && (nextSlot =/= i.U)) {
       slotReqCount(i) := slotReqCount(i) + 1.U
-    }.elsewhen (!io.slotReqIn(i) && (nextSlot === i.U)) {
+    }.elsewhen (!io.slotReqIn(i) && (nextSlot === i.U) && (slotReqCount(nextSlot) > 0.U)) {
       slotReqCount(i) := slotReqCount(i) - 1.U
     }
   }

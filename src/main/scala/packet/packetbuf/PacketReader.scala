@@ -127,6 +127,7 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
         pageCount := 1.U
         bytesRemaining := length.io.deq.bits - c.WordSize
         metaQueue.io.enq.valid := true.B
+        metaQueue.io.enq.bits.code.code := packet.packetSop
         length.io.deq.ready := true.B
         bufferReadTx.io.enq.valid := true.B
       }

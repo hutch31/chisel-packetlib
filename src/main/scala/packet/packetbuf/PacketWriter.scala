@@ -48,7 +48,6 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   val interfaceOutReg = Reg(io.writeReqOut.bits.cloneType)
   val interfaceOutValid = RegInit(false.B)
   // small queue for holding data between accepting it from portDataIn and sending on the ring
-  //val dataQ = Module(new Queue(new PacketData(c.WordSize), writeBuf))
   val s_idle :: s_page :: Nil = Enum(2)
   val state = RegInit(init=s_idle)
   val currentPage = Reg(new PageType(c))
@@ -57,8 +56,6 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // connect incoming data to buffer, send out a slot request for each data line
   io.portDataIn.ready := false.B
-  //dataQ.io.enq.valid := false.B
-  //dataQ.io.enq.bits := io.portDataIn.bits
 
   // connect interface to packet buffer
   io.interface.writeSlotReq := io.portDataIn.ready && lineInfoHold.io.enq.valid
@@ -82,15 +79,16 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   io.schedOut <> schedOutSend.io.deq
 
   // all resources needed by the state machine are available
-  val fsmResourceOk = io.portDataIn.valid && lineInfoHold.io.enq.ready && bufferAllocator.io.freePage.valid
+  val pageAvailable = bufferAllocator.io.freePage.valid || ((state === s_page) && !(pageCount === (c.LinesPerPage-1).U))
+  val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready
 
   // state machine to put links into pages
   bufferAllocator.io.freePage.ready := false.B
   switch (state) {
     is (s_idle) {
-      when (fsmResourceOk && io.portDataIn.bits.code.isSop()) {
+      schedOutValid := false.B
+      when (fsmResourceOk && pageAvailable && io.portDataIn.bits.code.isSop()) {
         state := s_page
-        //dataQ.io.enq.valid := true.B
         io.portDataIn.ready := true.B
         schedOutHold.length := c.WordSize.U
         pageCount := 1.U
@@ -104,9 +102,8 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     }
 
     is (s_page) {
-      when (fsmResourceOk && !schedOutValid) {
+      when (fsmResourceOk && (pageAvailable || io.portDataIn.bits.code.isEop()) && !schedOutValid) {
         lineInfoHold.io.enq.valid := true.B
-        //dataQ.io.enq.valid := true.B
         io.portDataIn.ready := true.B
 
         when (io.portDataIn.bits.code.isEop()) {
@@ -177,6 +174,12 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
   io.freePage.bits := freeRespRx.io.deq.bits.page
 
   // keep number of outstanding requests below the amount of buffer credit available in the receiver
+  when (freeReqSender.io.enq.valid && !io.freePage.fire()) {
+    freePageReqCount := freePageReqCount + 1.U
+  }.elsewhen (!freeReqSender.io.enq.valid && io.freePage.fire()) {
+    freePageReqCount := freePageReqCount - 1.U
+  }
+
   freeReqSender.io.enq.valid := freePageReqCount < c.freeListReqCredit.U
   freeReqSender.io.enq.bits.requestor := io.id
   if (c.NumPools == 1) {
