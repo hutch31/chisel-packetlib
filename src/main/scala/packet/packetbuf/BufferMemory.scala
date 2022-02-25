@@ -67,11 +67,10 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
     val readRespOut = ValidIO(new BufferReadResp(c))
   })
+  /*
   val mem = SyncReadMem(c.LinesPerPage*c.PagePerPool, Vec(c.WordSize, UInt(8.W)))
   val memWrAddr = Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
   val memRdAddr = Cat(io.readReqIn.bits.page.pageNum, io.readReqIn.bits.line)
-  //val readReqDelay = RegNext(next=io.readReqIn)
-  //val readRespOut = Reg(ValidIO(new BufferReadResp(c)))
 
   when (io.writeReqIn.valid) {
     mem.write(memWrAddr, io.writeReqIn.bits.data)
@@ -79,12 +78,16 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
   io.readRespOut.bits.data := mem.read(memRdAddr, io.readReqIn.valid)
   io.readRespOut.bits.req  := RegEnable(next=io.readReqIn.bits, enable=io.readReqIn.valid)
   io.readRespOut.valid     := RegNext(next=io.readReqIn.valid)
-  //when (io.readReqIn.valid) {
-  //  readRespOut.bits.data := mem.read(memRdAddr)
-  //  readRespOut.bits.req := io.readReqIn.bits
-  //}
-  //readRespOut.valid := io.readReqIn.valid
-  //io.readRespOut := readRespOut
+   */
+  val mem = Module(c.mgen(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage*c.PagePerPool, latency=c.PacketBufferReadLatency))
+  mem.io.writeAddr := Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
+  mem.io.readAddr  := Cat(io.readReqIn.bits.page.pageNum, io.readReqIn.bits.line)
+  mem.io.writeEnable := io.writeReqIn.valid
+  mem.io.writeData   := io.writeReqIn.bits.data
+  mem.io.readEnable  := io.readReqIn.valid
+  io.readRespOut.bits.data := mem.io.readData
+  io.readRespOut.bits.req  := ShiftRegister(io.readReqIn.bits, c.PacketBufferReadLatency)
+  io.readRespOut.valid     := ShiftRegister(io.readReqIn.valid, c.PacketBufferReadLatency)
 }
 
 /**

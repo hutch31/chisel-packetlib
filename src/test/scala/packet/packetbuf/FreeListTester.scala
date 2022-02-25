@@ -7,13 +7,14 @@ import chiseltest.ChiselScalatestTester
 import chiseltest.experimental.TestOptionBuilder._
 import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
+import packet.generic.Memgen1R1W
 
 class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
     behavior of "Testers2 with Queue"
 
     ignore should "init all pages" in {
       val pagePerPool = 4
-      val conf = new BufferConfig(1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
+      val conf = new BufferConfig(new Memgen1R1W, 1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
       val poolNum = 1
 
       test(new FreeListPool(conf, poolNum)).withAnnotations(Seq(WriteVcdAnnotation)) {
@@ -36,7 +37,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
   ignore should "init all pages in multiple pools" in {
     val pagePerPool = 4
     val numPools = 2
-    val conf = new BufferConfig(numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
+    val conf = new BufferConfig(new Memgen1R1W, numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
     val poolNum = 0
 
     test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
@@ -64,7 +65,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
 
   ignore should "init all pages in single pool" in {
     val pagePerPool = 4
-    val conf = new BufferConfig(1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
+    val conf = new BufferConfig(new Memgen1R1W, 1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
     val poolNum = 0
 
     test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {

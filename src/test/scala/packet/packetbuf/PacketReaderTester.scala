@@ -8,14 +8,15 @@ import org.scalatest._
 import chiseltest.experimental.TestOptionBuilder._
 import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
+import packet.generic.Memgen1R1W
 
 class PacketReaderTester extends FlatSpec with ChiselScalatestTester with Matchers {
   it should "request pages after getting descriptor" in {
     val pagePerPool = 32
     val requestor = 1
     val LinesPerPage = 4
-    val conf = new BufferConfig(4, pagePerPool, 2, LinesPerPage, 2, 2, MTU = 2048, credit = 2)
-    test(new PacketReader(conf, requestor)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    val conf = new BufferConfig(new Memgen1R1W, 4, pagePerPool, 2, LinesPerPage, 2, 2, MTU = 2048, credit = 2)
+    test(new PacketReader(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.id.poke(requestor.U)
         c.io.schedIn.valid.poke(true.B)

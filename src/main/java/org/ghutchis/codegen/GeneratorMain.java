@@ -16,6 +16,7 @@ import net.sourceforge.argparse4j.inf.Namespace;
 
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 
+import packet.generic.Memgen1R1W;
 import packet.packetbuf.*;
 import scala.collection.immutable.Seq;
 
@@ -49,6 +50,7 @@ public class GeneratorMain {
         PacketBufferGeneration device = PacketBufferGenerationFactory.unmarshalResponse(xmlConfig);
 
         BufferConfig bconf = new BufferConfig(
+				new Memgen1R1W(),
                 device.BufferConfig.NumPools,
                 device.BufferConfig.PagePerPool,
                 device.BufferConfig.WordSize,
@@ -56,7 +58,9 @@ public class GeneratorMain {
                 device.BufferConfig.ReadClients,
                 device.BufferConfig.WriteClients,
                 device.BufferConfig.MTU,
-                device.BufferConfig.credit);
+                device.BufferConfig.credit,
+				2,
+				1);
 
         ChiselStage stage = new ChiselStage();
         String[] buildArgs = {"--target-dir", "generated"};

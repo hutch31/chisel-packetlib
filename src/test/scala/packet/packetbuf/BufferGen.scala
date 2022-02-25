@@ -1,9 +1,12 @@
 package packet.packetbuf
 
 import chisel3.stage.ChiselGeneratorAnnotation
+import packet.generic.Memgen1R1W
 
 object BufferGen extends App {
-  val conf = new BufferConfig(NumPools = 2,
+  val conf = new BufferConfig(
+    new Memgen1R1W,
+    NumPools = 2,
     PagePerPool = 8,
     WordSize = 4,
     LinesPerPage = 4,
@@ -11,24 +14,10 @@ object BufferGen extends App {
     WriteClients = 2,
     MTU = 2048,
     credit = 2)
-  //chisel3.Driver.execute(args, () => new BufferMemory(conf))
-  //chisel3.Driver.execute(args, () => new RingScheduler(8, 4))
-  //chisel3.Driver.execute(args, () => new FlatPacketBuffer(conf))
-  //chisel3.Driver.execute(args, () => new FreeList(conf))
-  //chisel3.Driver.execute(args, () => new PacketWriter(conf, 0))
-
-  val conf2 = new BufferConfig(1, 4, 2, 4, 2, 2, MTU = 2048, credit = 2)
-  //chisel3.Driver.execute(args, () => new PacketWriterTestbench(conf))
   val chiselStage = new chisel3.stage.ChiselStage
-  /*
-  chiselStage.execute(
-    Array("-X", "verilog"),
-    Seq(ChiselGeneratorAnnotation(() => new PacketWriterTestbench(conf2)))
-    )
 
-   */
   chiselStage.execute(
     Array("-X", "verilog"),
-    Seq(ChiselGeneratorAnnotation(() =>new PacketReader(conf2, txbuf = 1)))
+    Seq(ChiselGeneratorAnnotation(() =>new PacketReader(conf)))
   )
 }

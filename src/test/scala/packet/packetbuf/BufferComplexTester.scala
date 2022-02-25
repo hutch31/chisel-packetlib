@@ -11,6 +11,7 @@ import chisel3.util.ValidIO
 import chiseltest.ChiselScalatestTester
 import chiseltest.internal.WriteVcdAnnotation
 import org.scalatest.{FlatSpec, Matchers}
+import packet.generic.Memgen1R1W
 import packet.{PacketCode, PacketData}
 import packet.packet.packetSop
 
@@ -59,7 +60,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
   it should "send a packet" in {
     val readClients = 2
     val writeClients = 2
-    val conf = new BufferConfig(1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=2)
+    val conf = new BufferConfig(new Memgen1R1W(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=2)
 
     test(new BufferComplexTestbench(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
@@ -103,7 +104,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
   it should "link two pages" in {
     val readClients = 2
     val writeClients = 2
-    val conf = new BufferConfig(1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 2)
+    val conf = new BufferConfig(new Memgen1R1W, 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 2, ReadWordBuffer=4, PacketBufferReadLatency = 2)
 
     test(new BufferComplexTestbench(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {

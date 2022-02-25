@@ -18,7 +18,7 @@ class WordMetadata(WordSize : Int) extends Bundle {
   override def cloneType = new WordMetadata(WordSize).asInstanceOf[this.type]
 }
 
-class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
+class PacketReader(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
     val id = Input(UInt(log2Ceil(c.ReadClients).W))
     val portDataOut = Decoupled(new PacketData(c.WordSize))
@@ -32,9 +32,9 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
   val freeListTx = Module(new DCCreditSender(new PageType(c), c.linkReadCredit))
   val bufferReadTx = Module(new DCCreditSender(new BufferReadReq(c), c.linkReadCredit))
   val schedRx = Module(new DCCreditReceiver(new SchedulerReq(c), 1))
-  val txq = Module(new Queue(new PacketData(c.WordSize), txbuf).suggestName("ReaderTransmitQueue"))
-  val metaQueue = Module(new Queue(new WordMetadata(c.WordSize), txbuf).suggestName("ReaderMetaQueue"))
-  val txRequestCount = RegInit(init=0.U(log2Ceil(txbuf+1).W))
+  val txq = Module(new Queue(new PacketData(c.WordSize), c.ReadWordBuffer).suggestName("ReaderTransmitQueue"))
+  val metaQueue = Module(new Queue(new WordMetadata(c.WordSize), c.ReadWordBuffer).suggestName("ReaderMetaQueue"))
+  val txRequestCount = RegInit(init=0.U(log2Ceil(c.ReadWordBuffer+1).W))
   val ws_idle :: ws_wait_link :: Nil = Enum(2)
   val walkState = RegInit(init=ws_idle)
   val pageCount = RegInit(init=0.U(log2Ceil(c.LinesPerPage).W))
@@ -69,7 +69,6 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
 
   switch (walkState) {
     is (ws_idle) {
-      txRequestCount := 0.U
       when(schedRx.io.deq.valid & length.io.enq.ready & linkListTx.io.enq.ready) {
         length.io.enq.valid := true.B
         schedRx.io.deq.ready := true.B
@@ -89,6 +88,8 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
         when (linkListRx.io.deq.bits.data.nextPageValid) {
           currentPage := linkListRx.io.deq.bits.data.nextPage
           linkListTx.io.enq.valid := true.B
+          pageList.io.enq.bits.page := currentPage
+          linkListTx.io.enq.bits.addr := linkListRx.io.deq.bits.data.nextPage
         }.otherwise {
           // no more pages, go back to idle
           pageList.io.enq.bits.lastPage := true.B
@@ -115,15 +116,21 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
   freeListTx.io.enq.valid := false.B
   freeListTx.io.enq.bits := pageList.io.deq.bits.page
 
-  val txResourceUsed = txRequestCount + txq.io.count
+  val txResourceUsed = txRequestCount +& txq.io.count
   val fsIdleReady = metaQueue.io.enq.ready & pageList.io.deq.valid & length.io.deq.valid & bufferReadTx.io.enq.ready
-  val fsFetchReady = (txResourceUsed < txbuf.U) & metaQueue.io.enq.ready & pageList.io.deq.valid & bufferReadTx.io.enq.ready & freeListTx.io.enq.ready
+  val fsFetchReady = (txResourceUsed < c.ReadWordBuffer.U) & metaQueue.io.enq.ready & pageList.io.deq.valid & bufferReadTx.io.enq.ready & freeListTx.io.enq.ready
+
+  // Track number of read requests in flight
+  when (bufferReadTx.io.enq.fire() && !txq.io.enq.fire()) {
+    txRequestCount := txRequestCount + 1.U
+  }.elsewhen (!bufferReadTx.io.enq.fire() && txq.io.enq.fire()) {
+    txRequestCount := txRequestCount - 1.U
+  }
 
   switch (fetchState) {
     is (fs_idle) {
       when (fsIdleReady) {
         fetchState := fs_fetch
-        txRequestCount := 1.U
         pageCount := 1.U
         bytesRemaining := length.io.deq.bits - c.WordSize
         metaQueue.io.enq.valid := true.B
@@ -141,9 +148,6 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
       when (fsFetchReady) {
         bufferReadTx.io.enq.valid := true.B
         metaQueue.io.enq.valid := true.B
-        when (!(txq.io.enq.valid & txq.io.enq.ready)) {
-          txRequestCount := txRequestCount + 1.U
-        }
         when (bytesRemaining <= c.WordSize) {
           metaQueue.io.enq.bits.code.code := packet.packetGoodEop
           metaQueue.io.enq.bits.count := bytesRemaining - 1.U
@@ -163,8 +167,6 @@ class PacketReader(c : BufferConfig, txbuf : Int = 1) extends Module {
             pageCount := pageCount + 1.U
           }
         }
-      }.elsewhen (txq.io.enq.valid & txq.io.enq.ready) {
-        txRequestCount := txRequestCount - 1.U
       }
     }
   }

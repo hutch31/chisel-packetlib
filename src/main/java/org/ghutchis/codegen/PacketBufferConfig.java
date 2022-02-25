@@ -14,4 +14,5 @@ public class PacketBufferConfig {
     public int WriteClients ;
     public int MTU ;
     public int credit;
+    public int PacketBufferReadLatency;
 }

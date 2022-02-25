@@ -31,6 +31,7 @@ class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
   info.io.deq.ready := false.B
   txq.io.enq.valid := false.B
   txq.io.enq.bits := 0.asTypeOf(new PacketData(wordSize))
+  txq.io.enq.bits.code.code := packet.packetBody
 
   io.destIn.valid := false.B
   io.destIn.bits.dest := info.io.deq.bits.dst
@@ -48,6 +49,7 @@ class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
       txq.io.enq.valid := true.B
       when(txq.io.enq.ready) {
         when (count === 0.U) {
+          txq.io.enq.bits.code.code := packet.packetSop
           for (i <- 0 to wordSize - 1) {
             i match {
               case 0 => txq.io.enq.bits.data(i) := info.io.deq.bits.pid(15,8)
@@ -62,6 +64,7 @@ class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
             txq.io.enq.bits.data(i) := count + i.U
           }
         }
+
         when(count + wordSize.U >= info.io.deq.bits.length) {
           txq.io.enq.bits.count := info.io.deq.bits.length - count - 1.U
           info.io.deq.ready := true.B
@@ -74,11 +77,6 @@ class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
           }
         }.otherwise {
           txq.io.enq.bits.count := 0.U
-          when(count === 0.U) {
-            txq.io.enq.bits.code.code := packet.packetSop
-          }.otherwise {
-            txq.io.enq.bits.code.code := packet.packetBody
-          }
           count := count + wordSize.U
         }
       }
