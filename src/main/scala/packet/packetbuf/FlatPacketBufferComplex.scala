@@ -11,7 +11,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     val portDataIn = Vec(c.WriteClients, Flipped(Decoupled(new PacketData(c.WordSize))))
     val destIn = Vec(c.WriteClients, Flipped(ValidIO(new RoutingResult(c.ReadClients))))
   })
-  val readers = for (i <- 0 until c.WriteClients) yield Module(new PacketReader(c))
+  val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
   val writers = for (i <- 0 until c.WriteClients) yield Module(new PacketWriter(c))
   val buffer = Module(new FlatPacketBuffer(c))
   val scheduler = Module(new DirectScheduler(c))

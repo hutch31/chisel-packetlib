@@ -15,15 +15,15 @@ import packet.generic.Memgen1R1W
 import packet.{PacketCode, PacketData}
 import packet.packet.packetSop
 
-class BufferComplexTestbench(conf : BufferConfig) extends Module {
+class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : Int) extends Module {
   val io = IO(new Bundle {
     val req = Flipped(ValidIO(new PacketRequest))
     val error = Output(Bool())
     val expQueueEmpty = Output(Bool())
   })
   val buffer = Module(new FlatPacketBufferComplex(conf))
-  val senders = for (i <- 0 until conf.WriteClients) yield Module(new PacketSender(conf.WordSize, conf.ReadClients))
-  val receivers = for (i <- 0 until conf.ReadClients) yield Module(new PacketReceiver(conf.WordSize, conf.WriteClients))
+  val senders = for (i <- 0 until conf.WriteClients) yield Module(new PacketSender(conf.WordSize, conf.ReadClients, writeDepth))
+  val receivers = for (i <- 0 until conf.ReadClients) yield Module(new PacketReceiver(conf.WordSize, conf.WriteClients, readDepth))
   val senderMux = Module(new DCDemux(new PacketRequest, conf.WriteClients))
   val receiverMux = Module(new DCDemux(new PacketRequest, conf.ReadClients))
   val errorBits = Wire(Vec(conf.ReadClients, Bool()))
@@ -58,43 +58,28 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
   behavior of "Testers2"
 
   it should "send a packet" in {
-    val readClients = 2
-    val writeClients = 2
-    val conf = new BufferConfig(new Memgen1R1W(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=2)
+    val readClients = 4
+    val writeClients = 4
+    val conf = new BufferConfig(new Memgen1R1W(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=1)
 
-    test(new BufferComplexTestbench(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
-        // Send packet 0 -> 1
-        c.io.req.valid.poke(true.B)
-        c.io.req.bits.src.poke(0.U)
-        c.io.req.bits.dst.poke(1.U)
-        c.io.req.bits.pid.poke(1.U)
-        c.io.req.bits.length.poke(8.U)
-        c.clock.step(1)
+        var pid : Int = 1
 
-        // Send packet 1 -> 0
-        c.io.req.bits.src.poke(1.U)
-        c.io.req.bits.dst.poke(0.U)
-        c.io.req.bits.pid.poke(2.U)
-        c.io.req.bits.length.poke(8.U)
-        c.clock.step(1)
-
-        // Send packet 0 -> 0
-        c.io.req.bits.src.poke(0.U)
-        c.io.req.bits.dst.poke(0.U)
-        c.io.req.bits.pid.poke(3.U)
-        c.io.req.bits.length.poke(8.U)
-        c.clock.step(1)
-
-        // Send packet 1 -> 1
-        c.io.req.bits.src.poke(1.U)
-        c.io.req.bits.dst.poke(1.U)
-        c.io.req.bits.pid.poke(4.U)
-        c.io.req.bits.length.poke(8.U)
-        c.clock.step(1)
+        for (src <- 0 until writeClients) {
+          for (dst <- 0 until readClients) {
+            c.io.req.valid.poke(true.B)
+            c.io.req.bits.src.poke(src.U)
+            c.io.req.bits.dst.poke(dst.U)
+            c.io.req.bits.pid.poke(pid.U)
+            c.io.req.bits.length.poke(8.U)
+            c.clock.step(1)
+            pid += 1
+          }
+        }
 
         c.io.req.valid.poke(false.B)
-        c.clock.step(60)
+        c.clock.step(150)
         c.io.error.expect(false.B)
         c.io.expQueueEmpty.expect(true.B)
       }
@@ -104,9 +89,9 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
   it should "link two pages" in {
     val readClients = 2
     val writeClients = 2
-    val conf = new BufferConfig(new Memgen1R1W, 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 2, ReadWordBuffer=4, PacketBufferReadLatency = 2)
+    val conf = new BufferConfig(new Memgen1R1W, 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = 2)
 
-    test(new BufferComplexTestbench(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         // send three 32B packets
         c.io.req.valid.poke(true.B)
@@ -117,8 +102,8 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
         c.clock.step(1)
 
         c.io.req.valid.poke(true.B)
-        c.io.req.bits.src.poke(0.U)
-        c.io.req.bits.dst.poke(1.U)
+        c.io.req.bits.src.poke(1.U)
+        c.io.req.bits.dst.poke(0.U)
         c.io.req.bits.pid.poke(2.U)
         c.io.req.bits.length.poke(32.U)
         c.clock.step(1)
@@ -139,4 +124,63 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
       }
     }
   }
+
+  it should "have different writers and readers" in {
+    for ((writeClients, readClients) <- List((2,5), (3,4), (5,2), (8,3), (3,8))) {
+    //for ((writeClients, readClients) <- List(((3,8)))) {
+      val cycles = 50 + readClients * writeClients * 10
+      val conf = new BufferConfig(new Memgen1R1W(), 1, 16, 4, 4, readClients, writeClients, MTU=2048, credit=1)
+
+      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+        c => {
+          var pid : Int = 1
+
+          for (src <- 0 until writeClients) {
+            for (dst <- 0 until readClients) {
+              c.io.req.valid.poke(true.B)
+              c.io.req.bits.src.poke(src.U)
+              c.io.req.bits.dst.poke(dst.U)
+              c.io.req.bits.pid.poke(pid.U)
+              c.io.req.bits.length.poke(8.U)
+              c.clock.step(1)
+              pid += 1
+            }
+          }
+
+          c.io.req.valid.poke(false.B)
+          c.clock.step(cycles)
+          c.io.error.expect(false.B)
+          c.io.expQueueEmpty.expect(true.B)
+        }
+      }
+    }
+  }
+
+  it should "work with high memory latency" in {
+    for (memLatency <- List(2, 3, 5, 8)) {
+      val readClients = 2
+      val writeClients = 2
+      val conf = new BufferConfig(new Memgen1R1W, 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = memLatency)
+
+
+      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+        c => {
+          for (p <- 1 to 5) {
+            c.io.req.valid.poke(true.B)
+            c.io.req.bits.src.poke(0.U)
+            c.io.req.bits.dst.poke(1.U)
+            c.io.req.bits.pid.poke(p.U)
+            c.io.req.bits.length.poke(32.U)
+            c.clock.step(1)
+          }
+          c.io.req.valid.poke(false.B)
+
+          c.clock.step(150)
+          c.io.error.expect(false.B)
+          c.io.expQueueEmpty.expect(true.B)
+        }
+      }
+    }
+  }
+
 }

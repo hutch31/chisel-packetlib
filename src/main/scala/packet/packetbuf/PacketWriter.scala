@@ -41,18 +41,16 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // this queue holds the metadata about the data line to be written (buffer address and line address)
   val lineInfoHold = Module(new Queue(new PacketLineInfo(c), writeBuf))
-  //lineInfoHold.desiredName("PacketLineInfoQueue")
   // count number of lines we have used in the current page, used for linking to the next page
   val pageCount = Reg(UInt(log2Ceil(c.LinesPerPage).W))
   // output data holding register, this forms part of the write ring
   val interfaceOutReg = Reg(io.writeReqOut.bits.cloneType)
   val interfaceOutValid = RegInit(false.B)
   // small queue for holding data between accepting it from portDataIn and sending on the ring
-  val s_idle :: s_page :: Nil = Enum(2)
+  val s_idle :: s_page :: s_sched :: Nil = Enum(3)
   val state = RegInit(init=s_idle)
   val currentPage = Reg(new PageType(c))
   val schedOutHold = Reg(new SchedulerReq(c))
-  val schedOutValid = RegInit(false.B)
 
   // connect incoming data to buffer, send out a slot request for each data line
   io.portDataIn.ready := false.B
@@ -75,7 +73,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // send packet info to scheduler once last word of data is received
   schedOutSend.io.enq.bits := schedOutHold
-  schedOutSend.io.enq.valid := schedOutValid
+  schedOutSend.io.enq.valid := false.B
   io.schedOut <> schedOutSend.io.deq
 
   // all resources needed by the state machine are available
@@ -86,7 +84,6 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   bufferAllocator.io.freePage.ready := false.B
   switch (state) {
     is (s_idle) {
-      schedOutValid := false.B
       when (fsmResourceOk && pageAvailable && io.portDataIn.bits.code.isSop()) {
         state := s_page
         io.portDataIn.ready := true.B
@@ -102,7 +99,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     }
 
     is (s_page) {
-      when (fsmResourceOk && (pageAvailable || io.portDataIn.bits.code.isEop()) && !schedOutValid) {
+      when (fsmResourceOk && (pageAvailable || io.portDataIn.bits.code.isEop())) {
         lineInfoHold.io.enq.valid := true.B
         io.portDataIn.ready := true.B
 
@@ -110,9 +107,17 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           schedOutHold.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
           linkWriteSend.io.enq.bits.data.nextPageValid := false.B
           linkWriteSend.io.enq.valid := true.B
-          state := s_idle
-          schedOutValid := true.B
           schedOutHold.dest := dest
+
+          // last state optimization -- if scheduler has credit available, then dispatch immediately
+          // otherwise store info and jump to sched state to wait
+          schedOutSend.io.enq.valid := true.B
+          when (schedOutSend.io.enq.ready) {
+            schedOutSend.io.enq.bits.dest := dest
+            state := s_idle
+          }.otherwise {
+            state := s_sched
+          }
         }.otherwise {
           schedOutHold.length := schedOutHold.length + c.WordSize.U
 
@@ -127,6 +132,14 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
             pageCount := pageCount + 1.U
           }
         }
+      }
+    }
+
+    // wait state for when scheduler is not ready
+    is (s_sched) {
+      schedOutSend.io.enq.valid := true.B
+      when (schedOutSend.io.enq.ready) {
+        state := s_idle
       }
     }
   }

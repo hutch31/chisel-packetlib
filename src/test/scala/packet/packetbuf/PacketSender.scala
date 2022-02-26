@@ -13,14 +13,14 @@ class PacketRequest extends Bundle {
   val packetGood = Bool()
 }
 
-class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
+class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends Module {
   val io = IO(new Bundle {
     val packetData = Decoupled(new PacketData(wordSize))
     val sendPacket = Flipped(Decoupled(new PacketRequest))
     val destIn = ValidIO(new RoutingResult(ReadClients))
   })
   // latch incoming packet send requests
-  val info = Module(new Queue(new PacketRequest, 4))
+  val info = Module(new Queue(new PacketRequest, reqSize))
   val txq = Module(new Queue(new PacketData(wordSize), 2))
   val count = Reg(UInt(16.W))
   val s_idle :: s_packet :: Nil = Enum(2)
@@ -84,14 +84,14 @@ class PacketSender(wordSize : Int, ReadClients : Int) extends Module {
   }
 }
 
-class PacketReceiver(wordSize : Int, senders: Int) extends Module {
+class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Module {
   val io = IO(new Bundle {
     val packetData = Flipped(Decoupled(new PacketData(wordSize)))
     val sendPacket = Flipped(Decoupled(new PacketRequest))
     val error = Output(Bool())
     val expQueueEmpty = Output(Bool())
   })
-  val pidQueue = for (i <- 0 until senders) yield Module(new Queue(new PacketRequest, 8))
+  val pidQueue = for (i <- 0 until senders) yield Module(new Queue(new PacketRequest, reqSize))
   val queueData = Wire(Vec(senders, new PacketRequest))
   val queueReady = Wire(UInt(8.W))
   val pidQueueValid = Wire(UInt(senders.W))
