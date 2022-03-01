@@ -33,19 +33,21 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers{
         // Send in third word of data
         // no flow control should be asserted
         c.clock.step(1)
+
+        c.io.out.ready.poke(true.B)
         c.io.in.ready.expect(true.B)
         c.io.in.bits.data(0).poke(4.U)
         c.io.in.bits.data(1).poke(5.U)
-
-
-        c.clock.step(1)
-        c.io.in.valid.poke(false.B)
 
         // first double word of data should be valid
         c.io.out.valid.expect(true.B)
         for (i <- 0 until 3) {
           c.io.out.bits.data(i).expect(i.U)
         }
+
+        c.clock.step(1)
+        c.io.in.valid.poke(false.B)
+
 
         c.clock.step(1)
         c.io.out.valid.expect(false.B)
@@ -58,13 +60,11 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers{
         c.clock.step(1)
         c.io.in.valid.poke(false.B)
 
-        c.clock.step(1)
         c.io.out.valid.expect(true.B)
 
         for (i <- 0 until 3) {
           c.io.out.bits.data(i).expect((i+4).U)
         }
-
       }
     }
   }
