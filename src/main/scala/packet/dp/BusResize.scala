@@ -36,7 +36,11 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
   outHold.io.deq <> io.out
   lastWordEop := (wordsStored =/= 0.U) && accum(wordsStored).code.isEop()
   fullCondition := lastWordEop || (wordsStored === maxWords.U)
-  io.in.ready := !fullCondition
+
+  // Need an indication when we are simultaneously shifting data from from the accumulator into
+  // outHold and storing a new word in the accumulator
+  val shiftCondition = io.in.valid && fullCondition & outHold.io.enq.ready
+  io.in.ready := !fullCondition || outHold.io.enq.ready
 
   outHold.io.enq.valid := false.B
 
@@ -52,7 +56,7 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
   }.elsewhen (wordsStored > 0) {
     outHold.io.enq.bits.code := accum(wordsStored-1).code
   }.otherwise {
-    outHold.io.enq.bits.code := packetSop
+    outHold.io.enq.bits.code.code := packetSop
   }
 
   // When last word is an EOP, use the running byte count plus last word count
@@ -69,7 +73,18 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
       byteCount := inWidth.U
     }
   }
-  when (!fullCondition && io.in.valid) {
+
+  outHold.io.enq.valid := false.B
+
+  when (fullCondition) {
+    outHold.io.enq.valid := true.B
+    when (shiftCondition) {
+      wordsStored := 1.U
+      accum(0) := io.in.bits
+    }.elsewhen (outHold.io.enq.ready) {
+      wordsStored := 0.U
+    }
+  }.elsewhen (!fullCondition && io.in.valid) {
     accum(wordsStored) := io.in.bits
     wordsStored := wordsStored + 1.U
   }
