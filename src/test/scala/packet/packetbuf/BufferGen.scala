@@ -1,11 +1,12 @@
 package packet.packetbuf
 
 import chisel3.stage.ChiselGeneratorAnnotation
-import packet.generic.Memgen1R1W
+import packet.generic.{Memgen1R1W, Memgen1RW}
 
 object BufferGen extends App {
   val conf = new BufferConfig(
     new Memgen1R1W,
+    new Memgen1RW,
     NumPools = 2,
     PagePerPool = 8,
     WordSize = 4,

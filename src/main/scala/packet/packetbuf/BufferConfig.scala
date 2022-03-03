@@ -3,7 +3,8 @@ package packet.packetbuf
 import packet.generic._
 
 case class BufferConfig
-(mgen: Memgen1R1W,
+(mgen2p: Memgen1R1W,
+ mgen1p : Memgen1RW,
  NumPools: Int,
  PagePerPool: Int,
  WordSize: Int,
@@ -13,6 +14,7 @@ case class BufferConfig
  MTU: Int,
  credit: Int,
  ReadWordBuffer : Int = 2,
+ PacketBuffer2Port : Boolean = true,
  PacketBufferReadLatency : Int = 1
 ) {
   val freeListReqCredit = credit

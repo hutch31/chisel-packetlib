@@ -39,7 +39,7 @@ class LinkListReadResp(c : BufferConfig) extends Bundle {
 }
 
 class BufferWriteReq(c : BufferConfig) extends Bundle {
-  //val valid = Bool()
+  val slotValid = Bool()
   val slot = UInt(log2Ceil(c.WriteClients).W)
   val page = new PageType(c)
   val line = UInt(log2Ceil(c.LinesPerPage).W)
@@ -63,7 +63,6 @@ class PageResp(c : BufferConfig) extends Bundle {
 }
 
 class BufferReadReq(c : BufferConfig) extends Bundle {
-  //val slot = UInt(log2Ceil(c.ReadClients).W)
   val requestor = UInt(log2Ceil(c.ReadClients).W)
   val page = new PageType(c)
   val line = UInt(log2Ceil(c.LinesPerPage).W)

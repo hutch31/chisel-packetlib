@@ -6,7 +6,7 @@ import chisel3.tester.{testableClock, testableData}
 import chiseltest.ChiselScalatestTester
 import chiseltest.internal.WriteVcdAnnotation
 import org.scalatest.{FlatSpec, Matchers}
-import packet.packet._
+import packet._
 
 class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
   behavior of "Testers2"

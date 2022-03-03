@@ -17,6 +17,7 @@ import net.sourceforge.argparse4j.inf.Namespace;
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 
 import packet.generic.Memgen1R1W;
+import packet.generic.Memgen1RW;
 import packet.packetbuf.*;
 import scala.collection.immutable.Seq;
 
@@ -51,6 +52,7 @@ public class GeneratorMain {
 
         BufferConfig bconf = new BufferConfig(
 				new Memgen1R1W(),
+				new Memgen1RW(),
                 device.BufferConfig.NumPools,
                 device.BufferConfig.PagePerPool,
                 device.BufferConfig.WordSize,
@@ -60,30 +62,12 @@ public class GeneratorMain {
                 device.BufferConfig.MTU,
                 device.BufferConfig.credit,
 				2,
+				true,
 				1);
 
         ChiselStage stage = new ChiselStage();
         String[] buildArgs = {"--target-dir", "generated"};
 
 		stage.emitVerilog(() -> { return new FlatPacketBufferComplex(bconf); } , buildArgs, stage.emitVerilog$default$3());
-        //stage.emitVerilog(() -> { return new FlatPacketBuffer(bconf); } , buildArgs, stage.emitVerilog$default$3());
-
-		//stage.emitVerilog(() -> { return new PacketReader(bconf, 2); } , buildArgs, stage.emitVerilog$default$3());
-
-		//stage.emitVerilog(() -> { return new PacketWriter(bconf, 1); } , buildArgs, stage.emitVerilog$default$3());
-
-		//String result = chisel3.Driver.emitVerilog(() -> {
-        //    FlatPacketBuffer conf = new FlatPacketBuffer(bconf);
-            //conf.suggestName(() -> device.Name.toString());
-        //    return conf;
-        //});
-
-        //String resultTx = chisel3.Driver.emitVerilog(() -> {
-        //    return new PacketReader(bconf, 2);
-        //});
-
-        //String resultRx = chisel3.Driver.emitVerilog(() -> {
-        //    return new PacketWriter(bconf, 1);
-        //});
     }
 }
