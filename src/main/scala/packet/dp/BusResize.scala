@@ -4,8 +4,7 @@ import chisel.lib.dclib._
 import chisel3._
 import chisel3.util._
 import chisel3.util.ImplicitConversions.intToUInt
-import packet.packet.packetSop
-import packet.{PacketCode, PacketData}
+import packet._
 
 /**
  * BusUpsize converts a lower-width bus to a higher-width bus.  To do this it
