@@ -5,10 +5,11 @@ import chisel3._
 import chisel3.util._
 import packet._
 
-class GenAxiToPkt(size: Int) extends Module {
+class GenAxiToPkt(size: Int, user : Int = 0) extends Module {
   val io = IO(new Bundle {
-    val in = Flipped(new PktAxiStreaming(size))
+    val in = Flipped(new PktAxiStreaming(size, user))
     val out = Decoupled(new PacketData(size))
+    val userOut = if(user > 0) Some(Output(UInt(user.W))) else None
     val error = Output(Bool())
   })
   val in = Module(new DCInput(new GenAxiDataBits(size)))
@@ -25,6 +26,10 @@ class GenAxiToPkt(size: Int) extends Module {
   io.out.bits.count := PopCount(in.io.deq.bits.tkeep) - 1.U
   io.out.bits.code.code := packetBody
   io.error := false.B
+
+  if (user > 0) {
+    io.userOut.get := in.io.deq.bits.tuser.get
+  }
   for (i <- 0 until size) {
     io.out.bits.data(i) := in.io.deq.bits.tdata(i*8+7,i*8)
   }
