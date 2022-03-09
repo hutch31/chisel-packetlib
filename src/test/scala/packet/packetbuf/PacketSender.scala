@@ -34,7 +34,7 @@ class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends
   txq.io.enq.bits.code.code := packet.packetBody
 
   io.destIn.valid := false.B
-  io.destIn.bits.dest := info.io.deq.bits.dst
+  io.destIn.bits.dest := 1 << info.io.deq.bits.dst
 
   switch (state) {
     is (s_idle) {

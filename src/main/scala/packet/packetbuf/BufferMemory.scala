@@ -51,6 +51,14 @@ class BufferMemory(c : BufferConfig) extends Module {
       io.readRespOut.valid := true.B
     }
   }
+
+  if (c.PacketBuffer2Port) {
+    wrScheduler.io.slotReqMask := Fill(c.WriteClients, 1.U)
+  } else {
+    val odd = RegInit(init=false.B)
+    odd := ~odd
+    wrScheduler.io.slotReqMask := Fill(c.WriteClients, odd)
+  }
 }
 
 class BufferMemoryPool(c : BufferConfig) extends Module {
@@ -59,15 +67,30 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
     val readRespOut = ValidIO(new BufferReadResp(c))
   })
-  val mem = Module(c.mgen2p(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage*c.PagePerPool, latency=c.PacketBufferReadLatency))
-  mem.io.writeAddr := Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
-  mem.io.readAddr  := Cat(io.readReqIn.bits.page.pageNum, io.readReqIn.bits.line)
-  mem.io.writeEnable := io.writeReqIn.valid
-  mem.io.writeData   := io.writeReqIn.bits.data
-  mem.io.readEnable  := io.readReqIn.valid
-  io.readRespOut.bits.data := mem.io.readData
-  io.readRespOut.bits.req  := ShiftRegister(io.readReqIn.bits, c.PacketBufferReadLatency)
-  io.readRespOut.valid     := ShiftRegister(io.readReqIn.valid, c.PacketBufferReadLatency)
+  if (c.PacketBuffer2Port) {
+    val mem = Module(c.mgen2p(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage * c.PagePerPool, latency = c.PacketBufferReadLatency))
+    mem.io.writeAddr := Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
+    mem.io.readAddr := Cat(io.readReqIn.bits.page.pageNum, io.readReqIn.bits.line)
+    mem.io.writeEnable := io.writeReqIn.valid
+    mem.io.writeData := io.writeReqIn.bits.data
+    mem.io.readEnable := io.readReqIn.valid
+    io.readRespOut.bits.data := mem.io.readData
+    io.readRespOut.bits.req := ShiftRegister(io.readReqIn.bits, c.PacketBufferReadLatency)
+    io.readRespOut.valid := ShiftRegister(io.readReqIn.valid, c.PacketBufferReadLatency)
+  } else {
+    val mem = Module(c.mgen1p(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage * c.PagePerPool, latency = c.PacketBufferReadLatency))
+    when (io.readReqIn.valid) {
+      mem.io.addr := Cat(io.readReqIn.bits.page.pageNum, io.readReqIn.bits.line)
+    }.otherwise {
+      mem.io.addr := Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
+    }
+    mem.io.writeEnable := io.writeReqIn.valid & !io.readReqIn.valid
+    mem.io.writeData := io.writeReqIn.bits.data
+    mem.io.readEnable := io.readReqIn.valid
+    io.readRespOut.bits.data := mem.io.readData
+    io.readRespOut.bits.req := ShiftRegister(io.readReqIn.bits, c.PacketBufferReadLatency)
+    io.readRespOut.valid := ShiftRegister(io.readReqIn.valid, c.PacketBufferReadLatency)
+  }
 }
 
 /**
@@ -79,16 +102,19 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
 class RingScheduler(clients : Int, countSize : Int = 4) extends Module {
   val io = IO(new Bundle {
     val slotReqIn = Input(Vec(clients, Bool()))
+    val slotReqMask = Input(UInt(clients.W))
     val writeReqOut = Output(UInt(log2Ceil(clients).W))
     val slotValid = Output(Bool())
   })
   val slotReqCount = RegInit(init=0.asTypeOf(Vec(clients, UInt(countSize.W))))
   val countPos = Wire(Vec(clients, Bool()))
-  val nextSlot = PriorityEncoder(Cat(countPos.reverse))
+  val activeReq = Cat(countPos.reverse) & io.slotReqMask
+  val nextSlot = PriorityEncoder(activeReq)
+  val anyReq = activeReq =/= 0.U
 
   for (i <- 0 until clients) {
     countPos(i) := slotReqCount(i) =/= 0.U
-    when (io.slotReqIn(i) && (nextSlot =/= i.U)) {
+    when (io.slotReqIn(i) && !(anyReq && (nextSlot === i.U))) {
       slotReqCount(i) := slotReqCount(i) + 1.U
     }.elsewhen (!io.slotReqIn(i) && (nextSlot === i.U) && (slotReqCount(nextSlot) > 0.U)) {
       slotReqCount(i) := slotReqCount(i) - 1.U
@@ -96,5 +122,5 @@ class RingScheduler(clients : Int, countSize : Int = 4) extends Module {
   }
 
   io.writeReqOut := nextSlot
-  io.slotValid := true.B
+  io.slotValid := anyReq
 }

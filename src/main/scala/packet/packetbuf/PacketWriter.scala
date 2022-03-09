@@ -33,7 +33,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
 
-  val dest = RegEnable(init=0.U, next=io.destIn.bits.getDest(), enable=io.destIn.valid)
+  val dest = RegEnable(init=0.asTypeOf(new RoutingResult(c.ReadClients)), next=io.destIn.bits, enable=io.destIn.valid)
   val linkWriteSend = Module(new DCCreditSender(io.interface.linkListWriteReq.bits, c.linkWriteCredit))
   val schedOutSend = Module(new DCCreditSender(io.schedOut.bits, c.schedWriteCredit))
   val bufferAllocator = Module(new BasicPacketBufferAllocator(c))
@@ -107,13 +107,13 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           schedOutHold.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
           linkWriteSend.io.enq.bits.data.nextPageValid := false.B
           linkWriteSend.io.enq.valid := true.B
-          schedOutHold.dest := dest
+          schedOutHold.dest := dest.getNextDest()
 
           // last state optimization -- if scheduler has credit available, then dispatch immediately
           // otherwise store info and jump to sched state to wait
           schedOutSend.io.enq.valid := true.B
           when (schedOutSend.io.enq.ready) {
-            schedOutSend.io.enq.bits.dest := dest
+            schedOutSend.io.enq.bits.dest := dest.getNextDest()
             state := s_idle
           }.otherwise {
             state := s_sched
@@ -151,7 +151,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   io.writeReqOut.bits := interfaceOutReg
   lineInfoHold.io.deq.ready := false.B
 
-  when (lineInfoHold.io.deq.valid && !io.writeReqIn.valid && io.writeReqIn.bits.slot === io.id) {
+  when (lineInfoHold.io.deq.valid && !io.writeReqIn.valid && io.writeReqIn.bits.slotValid && io.writeReqIn.bits.slot === io.id) {
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
     //dataQ.io.deq.ready := true.B

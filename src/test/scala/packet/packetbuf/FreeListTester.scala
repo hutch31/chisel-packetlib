@@ -34,11 +34,10 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
       }
     }
 
-  ignore should "init all pages in multiple pools" in {
-    val pagePerPool = 4
-    val numPools = 2
+  it should "init all pages in multiple pools" in {
+    val pagePerPool = 16
+    val numPools = 4
     val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
-    val poolNum = 0
 
     test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
@@ -50,14 +49,18 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
 
 
         for (client <- 0 to 1) {
-          val reqSeq = for(i <- 0 until pagePerPool) yield new PageReq(conf).Lit(_.requestor -> client.U, _.pool -> poolNum.U)
-          fork {
-            c.io.freeRequestIn(client).enqueueSeq(reqSeq)
+          for (poolNum <- 0 until numPools) {
+            val reqSeq = for (i <- 0 until pagePerPool) yield new PageReq(conf).Lit(_.requestor -> client.U, _.pool -> poolNum.U)
+            val replySeq = for (i <- 0 until pagePerPool) yield new PageResp(conf).Lit(_.requestor -> client.U, _.page -> new PageType(conf).Lit(_.pool -> poolNum.U, _.pageNum -> i.U))
+            val returnSeq = for (i <- 0 until pagePerPool) yield new PageType(conf).Lit(_.pool -> poolNum.U, _.pageNum -> i.U)
+            fork {
+              c.io.freeRequestIn(client).enqueueSeq(reqSeq)
+            }.fork {
+              c.io.freeRequestOut(client).expectDequeueSeq(replySeq)
+              // return the used pages so to be ready for next step
+              c.io.freeReturnIn(client).enqueueSeq(returnSeq)
+            }.join()
           }
-        }
-        for (client <- 0 to 1) {
-          val replySeq = for(i <- 0 until pagePerPool) yield new PageResp(conf).Lit(_.requestor -> client.U, _.page -> new PageType(conf).Lit(_.pool -> poolNum.U, _.pageNum -> i.U))
-          c.io.freeRequestOut(client).expectDequeueSeq(replySeq)
         }
       }
     }

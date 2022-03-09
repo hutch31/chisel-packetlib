@@ -1,13 +1,11 @@
 package packet.packetbuf
 
-import Chisel.Cat
 import chisel.lib.dclib.DCDemux
 import chisel3._
 import chisel3.experimental.BundleLiterals.AddBundleLiteralConstructor
 import chisel3.tester.{decoupledToDriver, testableClock, testableData}
 import chisel3.tester.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
-import chisel3.util.ImplicitConversions.intToUInt
-import chisel3.util.ValidIO
+import chisel3.util._
 import chiseltest.ChiselScalatestTester
 import chiseltest.internal.WriteVcdAnnotation
 import org.scalatest.{FlatSpec, Matchers}

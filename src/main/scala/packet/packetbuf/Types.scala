@@ -109,8 +109,9 @@ class SchedulerReq(c : BufferConfig) extends Bundle {
 }
 
 class RoutingResult(destinations : Int) extends Bundle {
-  val dest = UInt(log2Ceil(destinations).W)
-  def getDest() : UInt = { dest }
+  val dest = UInt(destinations.W)
+  def getNextDest() : UInt = { PriorityEncoder(dest) }
+  def getNumDest() : UInt = { PopCount(dest) }
   override def cloneType = new RoutingResult(destinations).asInstanceOf[this.type]
 }
 

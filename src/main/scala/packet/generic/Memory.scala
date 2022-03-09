@@ -1,6 +1,7 @@
 package packet.generic
 
 import chisel3._
+import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 
 /**
@@ -57,13 +58,15 @@ class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
 
   val m = SyncReadMem(words, dtype)
 
+  io.readData := 0.asTypeOf(dtype.cloneType)
+
   when(io.writeEnable) {
     m.write(io.addr, io.writeData)
   }.elsewhen(io.readEnable) {
     if (rlat == 1) {
-      io.readData := m.read(io.addr, io.readEnable)
+      io.readData := m.read(io.addr)
     } else {
-      io.readData := ShiftRegister(m.read(io.addr, io.readEnable), rlat-1)
+      io.readData := ShiftRegister(m.read(io.addr), rlat-1)
     }
   }
 }
