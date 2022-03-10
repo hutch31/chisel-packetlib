@@ -137,6 +137,7 @@ class PacketReader(c : BufferConfig) extends Module {
         metaQueue.io.enq.bits.code.code := packet.packetSop
         length.io.deq.ready := true.B
         bufferReadTx.io.enq.valid := true.B
+        printf("Reader %d rreq page=%d/%d line=%d\n", io.id, bufferReadTx.io.enq.bits.page.pool, bufferReadTx.io.enq.bits.page.pageNum, bufferReadTx.io.enq.bits.line)
       }
     }
 

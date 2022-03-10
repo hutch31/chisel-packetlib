@@ -1,14 +1,12 @@
 package packet.packetbuf
 
-import chisel.lib.dclib._
 import chisel3._
-import chisel3.experimental.BundleLiterals.AddBundleLiteralConstructor
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
+import packet.packetbuf
 
 class BufferMemoryIO(c : BufferConfig) extends Bundle {
   val wrSlotReqIn = Input(Vec(c.WriteClients, Bool()))
-  //val rdSlotReqIn = Input(Vec(c.WriteClients, Bool()))
   val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
   val writeReqOut = ValidIO(new BufferWriteReq(c))
   val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
@@ -84,6 +82,9 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     }.otherwise {
       mem.io.addr := Cat(io.writeReqIn.bits.page.pageNum, io.writeReqIn.bits.line)
     }
+    when (io.writeReqIn.valid & io.readReqIn.valid) {
+      printf("Error - read and write in same cycle\n")
+    }
     mem.io.writeEnable := io.writeReqIn.valid & !io.readReqIn.valid
     mem.io.writeData := io.writeReqIn.bits.data
     mem.io.readEnable := io.readReqIn.valid
@@ -109,14 +110,22 @@ class RingScheduler(clients : Int, countSize : Int = 4) extends Module {
   val slotReqCount = RegInit(init=0.asTypeOf(Vec(clients, UInt(countSize.W))))
   val countPos = Wire(Vec(clients, Bool()))
   val activeReq = Cat(countPos.reverse) & io.slotReqMask
-  val nextSlot = PriorityEncoder(activeReq)
+  val nextSlot = Wire(UInt(log2Ceil(clients).W))
+  val granted = RegInit(init=1.U(clients.W))
+  val nextGranted = Wire(UInt(clients.W))
   val anyReq = activeReq =/= 0.U
+
+  // if more than one request is present, arbitrate round robin for next write slot
+  nextGranted := packetbuf.nxt_grant(clients, granted, activeReq, true.B)
+  granted := nextGranted
+  nextSlot := PriorityEncoder(nextGranted)
 
   for (i <- 0 until clients) {
     countPos(i) := slotReqCount(i) =/= 0.U
-    when (io.slotReqIn(i) && !(anyReq && (nextSlot === i.U))) {
+    val consuming = anyReq && countPos(i) && (nextSlot === i.U)
+    when (io.slotReqIn(i) && !consuming) {
       slotReqCount(i) := slotReqCount(i) + 1.U
-    }.elsewhen (!io.slotReqIn(i) && (nextSlot === i.U) && (slotReqCount(nextSlot) > 0.U)) {
+    }.elsewhen (!io.slotReqIn(i) && consuming) {
       slotReqCount(i) := slotReqCount(i) - 1.U
     }
   }

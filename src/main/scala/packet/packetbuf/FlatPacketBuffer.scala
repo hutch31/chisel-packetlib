@@ -49,8 +49,16 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
   }
 
   // connect arbiter to read request in, take read requests as they come
-  buffer.io.readReqIn.valid := readReqArbiter.io.p.valid
-  readReqArbiter.io.p.ready := true.B
+  val phase = Wire(Bool())
+  if (c.PacketBuffer2Port) {
+    phase := true.B
+  } else {
+    val odd = RegInit(init=true.B)
+    odd := !odd
+    phase := odd
+  }
+  buffer.io.readReqIn.valid := readReqArbiter.io.p.valid & phase
+  readReqArbiter.io.p.ready := phase
   buffer.io.readReqIn.bits := readReqArbiter.io.p.bits
 
   // Connect data buses directly to packet buffer

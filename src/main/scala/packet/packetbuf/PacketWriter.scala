@@ -152,6 +152,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   lineInfoHold.io.deq.ready := false.B
 
   when (lineInfoHold.io.deq.valid && !io.writeReqIn.valid && io.writeReqIn.bits.slotValid && io.writeReqIn.bits.slot === io.id) {
+    printf("Writer %d wr page=%d/%d line=%d data=%x\n", io.id, lineInfoHold.io.deq.bits.page.pool, lineInfoHold.io.deq.bits.page.pageNum, lineInfoHold.io.deq.bits.line, lineInfoHold.io.deq.bits.data.asUInt())
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
     //dataQ.io.deq.ready := true.B

@@ -49,6 +49,7 @@ class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends
       txq.io.enq.valid := true.B
       when(txq.io.enq.ready) {
         when (count === 0.U) {
+          printf("Sending packet PID=%d src=%d dst=%d\n", info.io.deq.bits.pid, info.io.deq.bits.src, info.io.deq.bits.dst)
           txq.io.enq.bits.code.code := packet.packetSop
           for (i <- 0 to wordSize - 1) {
             i match {
