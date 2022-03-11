@@ -33,4 +33,14 @@ package object packetbuf {
     rv
   }
 
+  def constantMult(x : UInt, y : Int) : UInt = {
+    require (y >= 1)
+    if (y == 1) {
+      return x
+    } else if ((y & 1) == 1) {
+      return x +& Cat(constantMult(x, y >> 1), 0.U(1.W))
+    } else {
+      return Cat(constantMult(x, y >> 1), 0.U(1.W))
+    }
+  }
 }

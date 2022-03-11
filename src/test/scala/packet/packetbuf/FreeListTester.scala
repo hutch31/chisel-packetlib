@@ -15,7 +15,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
     ignore should "init all pages" in {
       val pagePerPool = 4
       val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW,1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
-      val poolNum = 1
+      val poolNum = 0
 
       test(new FreeListPool(conf, poolNum)).withAnnotations(Seq(WriteVcdAnnotation)) {
         c => {
@@ -24,12 +24,13 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
           c.io.returnIn.initSource().setSourceClock(c.clock)
 
           val reqSeq = for(i <- 0 until pagePerPool) yield new PageReq(conf).Lit(_.requestor -> 0.U)
-          val replySeq = for(i <- 0 until pagePerPool) yield new PageResp(conf).Lit(_.requestor -> 0.U, _.page -> new PageType(conf).Lit(_.pool -> poolNum.U, _.pageNum -> i.U))
+          val replySeq = for(i <- 0 until pagePerPool) yield new PageResp(conf).Lit(_.requestor -> 0.U, _.page -> new PageType(conf).Lit( _.pageNum -> i.U))
 
           fork {
             c.io.requestIn.enqueueSeq(reqSeq)
-          }
-          c.io.requestOut.expectDequeueSeq(replySeq)
+          }.fork {
+            c.io.requestOut.expectDequeueSeq(replySeq)
+          }.join()
         }
       }
     }
@@ -57,10 +58,48 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
               c.io.freeRequestIn(client).enqueueSeq(reqSeq)
             }.fork {
               c.io.freeRequestOut(client).expectDequeueSeq(replySeq)
-              // return the used pages so to be ready for next step
-              c.io.freeReturnIn(client).enqueueSeq(returnSeq)
             }.join()
+
+            c.io.pagesPerPort(client).expect(pagePerPool.U)
+            // return the used pages so to be ready for next step
+            c.io.freeReturnIn(client).enqueueSeq(returnSeq)
+            c.clock.step(1)
+            c.io.pagesPerPort(client).expect(0.U)
           }
+        }
+      }
+    }
+  }
+
+  it should "stall return on update conflict" in {
+    val pagePerPool = 16
+    val numPools = 4
+    val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2)
+
+    test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
+      c => {
+        for (client <- 0 to 1) {
+          c.io.freeRequestIn(client).initSource().setSourceClock(c.clock)
+          //c.io.freeRequestOut(client).initSink().setSinkClock(c.clock)
+          c.io.freeReturnIn(client).initSource().setSourceClock(c.clock)
+        }
+
+        val client = 0
+        for (poolNum <- 0 until numPools) {
+          val reqSeq = for (i <- 0 until pagePerPool) yield new PageReq(conf).Lit(_.requestor -> client.U, _.pool -> poolNum.U)
+          val returnSeq = for (i <- 0 until pagePerPool) yield new PageType(conf).Lit(_.pool -> poolNum.U, _.pageNum -> i.U)
+
+          // accept all requests, don't care for this test
+          c.io.freeRequestOut(client).ready.poke(true.B)
+
+          fork {
+            c.io.freeRequestIn(client).enqueueSeq(reqSeq)
+          }.fork {
+            c.io.freeReturnIn(client).enqueueSeq(returnSeq)
+          }.join()
+
+          c.clock.step(2)
+          c.io.pagesPerPort(client).expect(0.U)
         }
       }
     }

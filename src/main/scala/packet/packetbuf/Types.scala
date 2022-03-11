@@ -10,6 +10,7 @@ import chisel3.util._
 class PageType(c : BufferConfig) extends Bundle {
   val pool = UInt(log2Ceil(c.NumPools).W)
   val pageNum = UInt(log2Ceil(c.PagePerPool).W)
+  def asAddr() : UInt = { constantMult(pool, c.PagePerPool) +& pageNum }
   override def cloneType =
     new PageType(c).asInstanceOf[this.type]
 }

@@ -2,35 +2,69 @@ package packet.packetbuf
 
 import chisel.lib.dclib._
 import chisel3._
+import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 
 class FreeListIO(c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
   val freeRequestOut = Vec(c.WriteClients, Decoupled(new PageResp(c)))
   val freeReturnIn = Vec(c.ReadClients, Flipped(Decoupled(new PageType(c))))
+  val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   override def cloneType =
     new FreeListIO(c).asInstanceOf[this.type]
 }
+
 class FreeList(c : BufferConfig) extends Module {
   val io = IO(new FreeListIO(c))
-
   require (c.WriteClients >= 2)
   require (c.ReadClients >= 2)
+
+  val sourcePage = Reg(Vec(c.totalPages, UInt(log2Ceil(c.ReadClients).W)))
+  val pagesPerPort = RegInit(init=0.asTypeOf(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W))))
+  io.pagesPerPort := pagesPerPort
+
   val listPools = for (i <- 0 until c.NumPools) yield Module(new FreeListPool(c, i))
   if (c.NumPools > 1) {
     val reqInXbar = Module(new DCCrossbar(new PageReq(c), inputs = c.WriteClients, outputs = c.NumPools))
     val reqOutXbar = Module(new DCCrossbar(new PageResp(c), inputs = c.NumPools, outputs = c.WriteClients))
     val retXbar = Module(new DCCrossbar(new PageType(c), inputs = c.ReadClients, outputs = c.NumPools))
+    val retXbarHold = for (i <- 0 until c.NumPools) yield DCOutput(retXbar.io.p(i))
 
     io.freeRequestIn <> reqInXbar.io.c
     for (wc <- 0 until c.WriteClients) {
       reqInXbar.io.sel(wc) := io.freeRequestIn(wc).bits.pool
     }
     for (p <- 0 until c.NumPools) {
+      val stallThisPort = Wire(Vec(c.NumPools, Bool()))
+      val stallPort = Cat(stallThisPort).orR().suggestName("stallPort" + p.toString)
+
+      // determine if we need to stall the return to avoid a same-cycle update
+      for (src <- 0 until c.NumPools) {
+        if (src == p) {
+          stallThisPort(src) := false.B
+        } else {
+          stallThisPort(src) := retXbarHold(p).valid && reqOutXbar.io.c(p).valid && listPools(p).io.requestOut.bits.requestor === sourcePage(retXbarHold(src).bits.asAddr())
+        }
+      }
       listPools(p).io.requestIn <> reqInXbar.io.p(p)
       reqOutXbar.io.c(p) <> listPools(p).io.requestOut
       reqOutXbar.io.sel(p) := listPools(p).io.requestOut.bits.requestor
-      listPools(p).io.returnIn <> retXbar.io.p(p)
+      listPools(p).io.returnIn <> retXbarHold(p)
+
+      // take away ready/valid signals if returning a page for a port being incremented this cycle
+      when (stallPort) {
+        listPools(p).io.returnIn.valid := false.B
+        retXbarHold(p).ready := false.B
+      }
+
+      when (reqOutXbar.io.c(p).fire()) {
+        sourcePage(reqOutXbar.io.c(p).bits.page.asAddr()) := listPools(p).io.requestOut.bits.requestor
+        pagesPerPort(listPools(p).io.requestOut.bits.requestor) := pagesPerPort(listPools(p).io.requestOut.bits.requestor) + 1.U
+      }
+
+      when (retXbarHold(p).fire()) {
+        pagesPerPort(sourcePage(retXbarHold(p).bits.asAddr())) := pagesPerPort(sourcePage(retXbarHold(p).bits.asAddr())) - 1.U
+      }
     }
     io.freeRequestOut <> reqOutXbar.io.p
 
@@ -48,10 +82,21 @@ class FreeList(c : BufferConfig) extends Module {
     reqInMux.io.p <> listPools(0).io.requestIn
     listPools(0).io.requestOut <> reqOutDemux.io.c
     reqOutDemux.io.sel := listPools(0).io.requestOut.bits.requestor
+
+    val samePortUpdate = reqOutDemux.io.c.fire() && retMux.io.p.fire() && listPools(0).io.requestOut.bits.requestor === sourcePage(retMux.io.p.bits.asAddr())
+    when (reqOutDemux.io.c.fire()) {
+      sourcePage(listPools(0).io.requestOut.bits.page.asAddr()) := listPools(0).io.requestOut.bits.requestor
+      when (!samePortUpdate) {
+        pagesPerPort(listPools(0).io.requestOut.bits.requestor) := pagesPerPort(listPools(0).io.requestOut.bits.requestor) + 1.U
+      }
+    }
     io.freeRequestOut <> reqOutDemux.io.p
 
     io.freeReturnIn <> retMux.io.c
     listPools(0).io.returnIn <> retMux.io.p
+    when (retMux.io.p.fire() && !samePortUpdate) {
+      pagesPerPort(sourcePage(retMux.io.p.bits.asAddr())) := pagesPerPort(sourcePage(retMux.io.p.bits.asAddr())) - 1.U
+    }
   }
 }
 

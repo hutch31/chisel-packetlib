@@ -24,4 +24,5 @@ case class BufferConfig
   val linkReadCredit = credit
   val bytesPerPage = WordSize * LinesPerPage
   val maxPagePerPacket = MTU / bytesPerPage + 1
+  val totalPages = NumPools * PagePerPool
 }
