@@ -40,4 +40,31 @@ class SinglePortTester extends FlatSpec with ChiselScalatestTester with Matchers
       }
     }
   }
+
+  it should "work with multiple pools with 1p" in {
+    for (numPools <- List(3)) {
+      val readClients = 2
+      val writeClients = 2
+      val conf = new BufferConfig(new Memgen1R1W(), new VerilogMemgen1RW(), numPools, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = 1)
+
+      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
+        c => {
+          for (p <- 1 to 5) {
+            c.io.req.valid.poke(true.B)
+            c.io.req.bits.src.poke(0.U)
+            c.io.req.bits.dst.poke(1.U)
+            c.io.req.bits.pid.poke(p.U)
+            c.io.req.bits.length.poke(32.U)
+            c.clock.step(1)
+          }
+          c.io.req.valid.poke(false.B)
+
+          c.clock.step(150)
+          c.io.error.expect(false.B)
+          c.io.expQueueEmpty.expect(true.B)
+        }
+      }
+    }
+  }
+
 }

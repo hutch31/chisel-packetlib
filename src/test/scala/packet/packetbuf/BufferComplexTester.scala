@@ -180,8 +180,8 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
     }
   }
 
-  ignore should "work with multiple pools" in {
-    for (numPools <- List(2)) {
+  it should "work with multiple pools" in {
+    for (numPools <- List(1, 3, 4)) {
       val readClients = 2
       val writeClients = 2
       val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), numPools, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = 1)
