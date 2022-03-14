@@ -11,6 +11,7 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
     val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
     val writeReqOut = ValidIO(new BufferWriteReq(c))
     val readRespOut = ValidIO(new BufferReadResp(c))
+    val status = new BufferStatus(c)
   })
   val buffer = Module(new BufferMemory(c))
   val freeList = Module(new FreeList(c))
@@ -65,5 +66,8 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
   buffer.io.writeReqIn := io.writeReqIn
   io.writeReqOut := buffer.io.writeReqOut
   io.readRespOut := buffer.io.readRespOut
+
+  // connect buffer status signals
+  io.status.pagesPerPort := freeList.io.pagesPerPort
 
 }
