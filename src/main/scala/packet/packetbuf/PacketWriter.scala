@@ -25,7 +25,7 @@ class PacketLineInfo(c : BufferConfig) extends Bundle {
 class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   val io = IO(new Bundle {
     val portDataIn = Flipped(Decoupled(new PacketData(c.WordSize)))
-    val destIn = Flipped(ValidIO(new RoutingResult(c.ReadClients)))
+    val destIn = Flipped(Decoupled(new RoutingResult(c.ReadClients)))
     val interface = new PacketWriterInterface(c)
     val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
     val writeReqOut = ValidIO(new BufferWriteReq(c))
@@ -33,7 +33,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
 
-  val dest = RegEnable(init=0.asTypeOf(new RoutingResult(c.ReadClients)), next=io.destIn.bits, enable=io.destIn.valid)
+  val dest = DCHold(io.destIn)
   val linkWriteSend = Module(new DCCreditSender(io.interface.linkListWriteReq.bits, c.linkWriteCredit))
   val schedOutSend = Module(new DCCreditSender(io.schedOut.bits, c.schedWriteCredit))
   val bufferAllocator = Module(new BasicPacketBufferAllocator(c))
@@ -79,9 +79,17 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   // all resources needed by the state machine are available
   val pageAvailable = bufferAllocator.io.freePage.valid || ((state === s_page) && !(pageCount === (c.LinesPerPage-1).U))
   val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready
+  val multicast = PopCount(dest.bits.dest) =/= 1.U
+
+  if (c.MaxReferenceCount > 1) {
+    io.interface.refCountAdd.get.valid := false.B
+    io.interface.refCountAdd.get.bits.amount := PopCount(dest.bits.dest) - 1.U
+    io.interface.refCountAdd.get.bits.page := currentPage
+  }
 
   // state machine to put links into pages
   bufferAllocator.io.freePage.ready := false.B
+  dest.ready := false.B
   switch (state) {
     is (s_idle) {
       when (fsmResourceOk && pageAvailable && io.portDataIn.bits.code.isSop()) {
@@ -107,13 +115,16 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           schedOutHold.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
           linkWriteSend.io.enq.bits.data.nextPageValid := false.B
           linkWriteSend.io.enq.valid := true.B
-          schedOutHold.dest := dest.getNextDest()
+          io.interface.refCountAdd.get.valid := multicast
+          schedOutHold.dest := dest.bits.dest
 
           // last state optimization -- if scheduler has credit available, then dispatch immediately
           // otherwise store info and jump to sched state to wait
-          schedOutSend.io.enq.valid := true.B
-          when (schedOutSend.io.enq.ready) {
-            schedOutSend.io.enq.bits.dest := dest.getNextDest()
+
+          when (dest.valid && schedOutSend.io.enq.ready) {
+            schedOutSend.io.enq.valid := true.B
+            dest.ready := true.B
+            schedOutSend.io.enq.bits.dest := dest.bits.dest
             state := s_idle
           }.otherwise {
             state := s_sched
@@ -125,6 +136,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           // write the link, then copy out the next page into the current page
           when (pageCount === (c.LinesPerPage-1).U) {
             linkWriteSend.io.enq.valid := true.B
+            io.interface.refCountAdd.get.valid := multicast
             currentPage := bufferAllocator.io.freePage.bits
             bufferAllocator.io.freePage.ready := true.B
             pageCount := 0.U
@@ -137,8 +149,9 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
     // wait state for when scheduler is not ready
     is (s_sched) {
-      schedOutSend.io.enq.valid := true.B
-      when (schedOutSend.io.enq.ready) {
+      when (dest.valid && schedOutSend.io.enq.ready) {
+        dest.ready := true.B
+        schedOutSend.io.enq.valid := true.B
         state := s_idle
       }
     }
@@ -196,12 +209,10 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
 
   freeReqSender.io.enq.valid := freePageReqCount < c.freeListReqCredit.U
   freeReqSender.io.enq.bits.requestor := io.id
-  if (c.NumPools == 1) {
-    freeReqSender.io.enq.bits.pool := 0.U // tie off
-  } else {
+  if (c.NumPools > 1) {
     // when more than one pool is in use, simply rotate requests between pools to statistically share load
     val curPool = RegInit(init=io.id)
-    freeReqSender.io.enq.bits.pool := curPool
+    freeReqSender.io.enq.bits.pool.get := curPool
     when (freeReqSender.io.enq.valid) {
       when (curPool === (c.NumPools-1).U) {
         curPool := 0.U

@@ -9,6 +9,7 @@ class FreeListIO(c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
   val freeRequestOut = Vec(c.WriteClients, Decoupled(new PageResp(c)))
   val freeReturnIn = Vec(c.ReadClients, Flipped(Decoupled(new PageType(c))))
+  val refCountAdd = if (c.MaxReferenceCount > 1) Some(Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))) else None
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   override def cloneType =
     new FreeListIO(c).asInstanceOf[this.type]
@@ -28,11 +29,35 @@ class FreeList(c : BufferConfig) extends Module {
     val reqInXbar = Module(new DCCrossbar(new PageReq(c), inputs = c.WriteClients, outputs = c.NumPools))
     val reqOutXbar = Module(new DCCrossbar(new PageResp(c), inputs = c.NumPools, outputs = c.WriteClients))
     val retXbar = Module(new DCCrossbar(new PageType(c), inputs = c.ReadClients, outputs = c.NumPools))
-    val retXbarHold = for (i <- 0 until c.NumPools) yield DCOutput(retXbar.io.p(i))
+    val retXbarHold = for (i <- 0 until c.NumPools) yield Module(new DCOutput(new PageType(c)))
+
+    if (c.MaxReferenceCount > 1)  {
+      val refCount = for (i <- 0 until c.NumPools) yield Module(new FreeListRefCount(c))
+      val refcountXbar = Module(new DCCrossbar(new RefCountAdd(c), inputs = c.WriteClients, outputs = c.NumPools))
+
+      refcountXbar.io.c <> io.refCountAdd.get
+      for (wc <- 0 until c.WriteClients) {
+        refcountXbar.io.sel(wc) := io.refCountAdd.get(wc).bits.page.pool
+      }
+      for (p <- 0 until c.NumPools) {
+        refCount(p).io.refCountAdd <> refcountXbar.io.p(p)
+
+        refCount(p).io.returnIn <> retXbar.io.p(p)
+        retXbarHold(p).io.enq <> refCount(p).io.returnOut
+
+        // monitor request out so we know when initial page is allocated
+        refCount(p).io.requestOut.bits := reqOutXbar.io.c(p).bits
+        refCount(p).io.requestOut.valid := reqOutXbar.io.c(p).fire()
+      }
+    } else {
+      for (p <- 0 until c.NumPools) {
+        retXbarHold(p).io.enq <> retXbar.io.p(p)
+      }
+    }
 
     io.freeRequestIn <> reqInXbar.io.c
     for (wc <- 0 until c.WriteClients) {
-      reqInXbar.io.sel(wc) := io.freeRequestIn(wc).bits.pool
+      reqInXbar.io.sel(wc) := io.freeRequestIn(wc).bits.pool.get
     }
     for (p <- 0 until c.NumPools) {
       val stallThisPort = Wire(Vec(c.NumPools, Bool()))
@@ -43,18 +68,18 @@ class FreeList(c : BufferConfig) extends Module {
         if (src == p) {
           stallThisPort(src) := false.B
         } else {
-          stallThisPort(src) := retXbarHold(p).valid && reqOutXbar.io.c(p).valid && listPools(p).io.requestOut.bits.requestor === sourcePage(retXbarHold(src).bits.asAddr())
+          stallThisPort(src) := retXbarHold(p).io.deq.valid && reqOutXbar.io.c(p).valid && listPools(p).io.requestOut.bits.requestor === sourcePage(retXbarHold(src).io.deq.bits.asAddr())
         }
       }
       listPools(p).io.requestIn <> reqInXbar.io.p(p)
       reqOutXbar.io.c(p) <> listPools(p).io.requestOut
       reqOutXbar.io.sel(p) := listPools(p).io.requestOut.bits.requestor
-      listPools(p).io.returnIn <> retXbarHold(p)
+      listPools(p).io.returnIn <> retXbarHold(p).io.deq
 
       // take away ready/valid signals if returning a page for a port being incremented this cycle
       when (stallPort) {
         listPools(p).io.returnIn.valid := false.B
-        retXbarHold(p).ready := false.B
+        retXbarHold(p).io.deq.ready := false.B
       }
 
       when (reqOutXbar.io.c(p).fire()) {
@@ -62,8 +87,8 @@ class FreeList(c : BufferConfig) extends Module {
         pagesPerPort(listPools(p).io.requestOut.bits.requestor) := pagesPerPort(listPools(p).io.requestOut.bits.requestor) + 1.U
       }
 
-      when (retXbarHold(p).fire()) {
-        pagesPerPort(sourcePage(retXbarHold(p).bits.asAddr())) := pagesPerPort(sourcePage(retXbarHold(p).bits.asAddr())) - 1.U
+      when (retXbarHold(p).io.deq.fire()) {
+        pagesPerPort(sourcePage(retXbarHold(p).io.deq.bits.asAddr())) := pagesPerPort(sourcePage(retXbarHold(p).io.deq.bits.asAddr())) - 1.U
       }
     }
     io.freeRequestOut <> reqOutXbar.io.p
@@ -77,13 +102,31 @@ class FreeList(c : BufferConfig) extends Module {
     val reqInMux = Module(new DCArbiter(new PageReq(c), c.WriteClients, false))
     val reqOutDemux = Module(new DCDemux(new PageResp(c), c.WriteClients))
     val retMux = Module(new DCArbiter(new PageType(c), c.ReadClients, false))
+    val retMuxOut = Wire(Decoupled(new PageType(c)))
 
     io.freeRequestIn <> reqInMux.io.c
     reqInMux.io.p <> listPools(0).io.requestIn
     listPools(0).io.requestOut <> reqOutDemux.io.c
     reqOutDemux.io.sel := listPools(0).io.requestOut.bits.requestor
 
-    val samePortUpdate = reqOutDemux.io.c.fire() && retMux.io.p.fire() && listPools(0).io.requestOut.bits.requestor === sourcePage(retMux.io.p.bits.asAddr())
+    if (c.MaxReferenceCount > 1)  {
+      val refCount = Module(new FreeListRefCount(c))
+      val refcountDemux = Module(new DCArbiter(new RefCountAdd(c),  c.WriteClients, false))
+
+      refcountDemux.io.c <> io.refCountAdd.get
+      refCount.io.refCountAdd <> refcountDemux.io.p
+
+      refCount.io.returnIn <> retMux.io.p
+      retMuxOut <> refCount.io.returnOut
+
+      // monitor request out so we know when initial page is allocated
+      refCount.io.requestOut.bits := reqOutDemux.io.c.bits
+      refCount.io.requestOut.valid := reqOutDemux.io.c.fire()
+    } else {
+      retMuxOut <> retMux.io.p
+    }
+
+    val samePortUpdate = reqOutDemux.io.c.fire() && retMuxOut.fire() && listPools(0).io.requestOut.bits.requestor === sourcePage(retMuxOut.bits.asAddr())
     when (reqOutDemux.io.c.fire()) {
       sourcePage(listPools(0).io.requestOut.bits.page.asAddr()) := listPools(0).io.requestOut.bits.requestor
       when (!samePortUpdate) {
@@ -93,9 +136,9 @@ class FreeList(c : BufferConfig) extends Module {
     io.freeRequestOut <> reqOutDemux.io.p
 
     io.freeReturnIn <> retMux.io.c
-    listPools(0).io.returnIn <> retMux.io.p
-    when (retMux.io.p.fire() && !samePortUpdate) {
-      pagesPerPort(sourcePage(retMux.io.p.bits.asAddr())) := pagesPerPort(sourcePage(retMux.io.p.bits.asAddr())) - 1.U
+    listPools(0).io.returnIn <> retMuxOut
+    when (retMuxOut.fire() && !samePortUpdate) {
+      pagesPerPort(sourcePage(retMuxOut.bits.asAddr())) := pagesPerPort(sourcePage(retMuxOut.bits.asAddr())) - 1.U
     }
   }
 }
@@ -106,14 +149,17 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
     val requestIn = Flipped(Decoupled(new PageReq(c)))
     val requestOut = Decoupled(new PageResp(c))
     val returnIn = Flipped(Decoupled(new PageType(c)))
+    //val refCountAdd = if (c.MaxReferenceCount > 1) Some(Flipped(Decoupled(new RefCountAdd(c)))) else None
   })
   val s_init :: s_run :: Nil = Enum(2)
   val state = RegInit(init = s_init)
   val initCount = RegInit(init=0.U(pageBits.W))
   val freeList = Module(new Queue(UInt(pageBits.W), c.PagePerPool).suggestName("FreeListQueue"))
   val requestIn = DCInput(io.requestIn)
-  val returnIn = DCInput(io.returnIn)
+  val returnIn = Wire(Flipped(Decoupled(new PageType(c))))
   val requestOut = Wire(Decoupled(new PageResp(c)))
+
+  returnIn <> DCInput(io.returnIn)
 
   freeList.io.enq.valid := false.B
   freeList.io.enq.bits := 0.U
@@ -150,4 +196,42 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
     freeList.io.deq.ready := true.B
   }
   io.requestOut <> DCOutput(requestOut)
+}
+
+class FreeListRefCount(c : BufferConfig) extends Module {
+  val io = IO(new Bundle {
+    val returnIn = Flipped(Decoupled(new PageType(c)))
+    val returnOut = Decoupled(new PageType(c))
+    val requestOut = Flipped(ValidIO(new PageResp(c)))
+    val refCountAdd = Flipped(Decoupled(new RefCountAdd(c)))
+  })
+  val refCount = Reg(Vec(c.PagePerPool, UInt(log2Ceil(c.MaxReferenceCount).W)))
+  val retIn = DCInput(io.returnIn)
+  val retOutHold = Module(new DCOutput(new PageType(c)))
+  retOutHold.io.deq <> io.returnOut
+
+  when (io.requestOut.valid) {
+    refCount(io.requestOut.bits.page.pageNum) := 1.U
+  }
+
+  io.refCountAdd.ready := true.B
+  when (io.refCountAdd.valid) {
+    refCount(io.refCountAdd.bits.page.pageNum) := refCount(io.refCountAdd.bits.page.pageNum) + io.refCountAdd.bits.amount
+  }
+
+  retIn.ready := false.B
+  retOutHold.io.enq.valid := false.B
+  retOutHold.io.enq.bits := retIn.bits
+
+  // hazard detection to stall if simultaneous increment and decrement to same address
+  val hazard = retIn.valid && io.refCountAdd.valid && retIn.bits.pageNum === io.refCountAdd.bits.page.pageNum
+  when (retIn.valid && !hazard) {
+    refCount(retIn.bits.pageNum) := refCount(retIn.bits.pageNum) - 1.U
+    when (refCount(retIn.bits.pageNum) > 1.U) {
+      retIn.ready := true.B
+    }.otherwise {
+      retOutHold.io.enq.valid := true.B
+      retIn.ready := retOutHold.io.enq.ready
+    }
+  }
 }

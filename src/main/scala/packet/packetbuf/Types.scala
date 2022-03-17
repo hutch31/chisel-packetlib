@@ -7,12 +7,10 @@ import chisel3.util._
 /**
  * Refers to a specific page in the packet memory buffer
  */
-class PageType(c : BufferConfig) extends Bundle {
+class PageType(val c : BufferConfig) extends Bundle {
   val pool = UInt(log2Ceil(c.NumPools).W)
   val pageNum = UInt(log2Ceil(c.PagePerPool).W)
   def asAddr() : UInt = { constantMult(pool, c.PagePerPool) +& pageNum }
-  override def cloneType =
-    new PageType(c).asInstanceOf[this.type]
 }
 
 class PageLink(c : BufferConfig) extends Bundle {
@@ -49,11 +47,9 @@ class BufferWriteReq(c : BufferConfig) extends Bundle {
     new BufferWriteReq(c).asInstanceOf[this.type]
 }
 
-class PageReq(c : BufferConfig) extends Bundle {
+class PageReq(val c : BufferConfig) extends Bundle {
   val requestor = UInt(log2Ceil(c.WriteClients).W)
-  val pool = UInt(log2Ceil(c.NumPools).W)
-  override def cloneType =
-    new PageReq(c).asInstanceOf[this.type]
+  val pool = if (c.NumPools > 1) Some(UInt(log2Ceil(c.NumPools).W)) else None
 }
 
 class PageResp(c : BufferConfig) extends Bundle {
@@ -78,7 +74,7 @@ class BufferReadResp(c : BufferConfig) extends Bundle {
     new BufferReadResp(c).asInstanceOf[this.type]
 }
 
-class PacketWriterInterface(c: BufferConfig) extends Bundle {
+class PacketWriterInterface(val c: BufferConfig) extends Bundle {
   // Interface to free list for requesting free pages to write to
   val freeListReq = new CreditIO(new PageReq(c))
   val freeListPage = Flipped(new CreditIO(new PageResp(c)))
@@ -86,8 +82,8 @@ class PacketWriterInterface(c: BufferConfig) extends Bundle {
   val linkListWriteReq = new CreditIO(new LinkListWriteReq(c))
   // Connection to page write ring
   val writeSlotReq = Output(Bool())
-  override def cloneType =
-    new PacketWriterInterface(c).asInstanceOf[this.type]
+  // Connection to Free list reference count
+  val refCountAdd = if (c.MaxReferenceCount > 1) Some(Decoupled(new RefCountAdd(c))) else None
 }
 
 class PacketReaderInterface(c: BufferConfig) extends Bundle {
@@ -103,7 +99,7 @@ class PacketReaderInterface(c: BufferConfig) extends Bundle {
 }
 
 class SchedulerReq(c : BufferConfig) extends Bundle {
-  val dest = UInt(log2Ceil(c.ReadClients).W)
+  val dest = UInt(c.ReadClients.W)
   val length = UInt(log2Ceil(c.MTU).W)
   val startPage = new PageType(c)
   override def cloneType = new SchedulerReq(c).asInstanceOf[this.type]
@@ -118,5 +114,10 @@ class RoutingResult(destinations : Int) extends Bundle {
 
 class BufferStatus(c : BufferConfig) extends Bundle {
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
+}
+
+class RefCountAdd(val c : BufferConfig) extends Bundle {
+  val page = new PageType(c)
+  val amount = UInt(log2Ceil(c.MaxReferenceCount).W)
 }
 

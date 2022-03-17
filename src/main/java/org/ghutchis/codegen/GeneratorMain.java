@@ -63,6 +63,7 @@ public class GeneratorMain {
                 device.BufferConfig.credit,
 				2,
 				true,
+				1,
 				1);
 
         ChiselStage stage = new ChiselStage();

@@ -17,7 +17,7 @@ class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends
   val io = IO(new Bundle {
     val packetData = Decoupled(new PacketData(wordSize))
     val sendPacket = Flipped(Decoupled(new PacketRequest))
-    val destIn = ValidIO(new RoutingResult(ReadClients))
+    val destIn = Decoupled(new RoutingResult(ReadClients))
   })
   // latch incoming packet send requests
   val info = Module(new Queue(new PacketRequest, reqSize))

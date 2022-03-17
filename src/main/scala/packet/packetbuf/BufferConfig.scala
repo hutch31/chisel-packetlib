@@ -15,7 +15,10 @@ case class BufferConfig
  credit: Int,
  ReadWordBuffer : Int = 2,
  PacketBuffer2Port : Boolean = true,
- PacketBufferReadLatency : Int = 1
+ PacketBufferReadLatency : Int = 1,
+ // When set to more than 1, implements a reference count inside FreeList, so that packets are not freed until
+ // the reference count returns to zero.
+ MaxReferenceCount : Int = 1
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit

@@ -1,6 +1,6 @@
 package packet.packetbuf
 
-import chisel.lib.dclib.{CreditIO, DCArbiter, DCCreditReceiver, DCCreditSender, DCCrossbar, DCDemux}
+import chisel.lib.dclib._
 import chisel3._
 import chisel3.util.{Decoupled, ValidIO}
 import packet.PacketData
@@ -9,7 +9,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
     val portDataOut = Vec(c.ReadClients, Decoupled(new PacketData(c.WordSize)))
     val portDataIn = Vec(c.WriteClients, Flipped(Decoupled(new PacketData(c.WordSize))))
-    val destIn = Vec(c.WriteClients, Flipped(ValidIO(new RoutingResult(c.ReadClients))))
+    val destIn = Vec(c.WriteClients, Flipped(Decoupled(new RoutingResult(c.ReadClients))))
     val status = new BufferStatus(c)
   })
   val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
@@ -50,7 +50,7 @@ class DirectScheduler(c : BufferConfig) extends Module {
   })
   val credRx = for (i <- 0 until c.WriteClients) yield Module(new DCCreditReceiver(new SchedulerReq(c), c.credit))
   val credTx = for (i <- 0 until c.ReadClients) yield Module(new DCCreditSender(new SchedulerReq(c), c.credit))
-  var xbar = Module(new DCCrossbar(new SchedulerReq(c), inputs=c.WriteClients, outputs=c.ReadClients))
+  var xbar = Module(new DcMcCrossbar(new SchedulerReq(c), inputs=c.WriteClients, outputs=c.ReadClients))
 
   for (i <- 0 until c.WriteClients) {
     io.schedIn(i) <> credRx(i).io.enq
