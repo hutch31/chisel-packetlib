@@ -33,11 +33,12 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
 
-  val dest = DCHold(io.destIn)
+  val dest = Module(new DCHold(new RoutingResult(c.ReadClients)))
   val linkWriteSend = Module(new DCCreditSender(io.interface.linkListWriteReq.bits, c.linkWriteCredit))
   val schedOutSend = Module(new DCCreditSender(io.schedOut.bits, c.schedWriteCredit))
   val bufferAllocator = Module(new BasicPacketBufferAllocator(c))
   bufferAllocator.io.id := io.id
+  io.destIn <> dest.io.enq
 
   // this queue holds the metadata about the data line to be written (buffer address and line address)
   val lineInfoHold = Module(new Queue(new PacketLineInfo(c), writeBuf))
@@ -78,18 +79,18 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // all resources needed by the state machine are available
   val pageAvailable = bufferAllocator.io.freePage.valid || ((state === s_page) && !(pageCount === (c.LinesPerPage-1).U))
-  val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready
-  val multicast = PopCount(dest.bits.dest) =/= 1.U
+  val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready & dest.io.deq.valid
+  val multicast = PopCount(dest.io.deq.bits.dest) =/= 1.U
 
   if (c.MaxReferenceCount > 1) {
     io.interface.refCountAdd.get.valid := false.B
-    io.interface.refCountAdd.get.bits.amount := PopCount(dest.bits.dest) - 1.U
+    io.interface.refCountAdd.get.bits.amount := PopCount(dest.io.deq.bits.dest) - 1.U
     io.interface.refCountAdd.get.bits.page := currentPage
   }
 
   // state machine to put links into pages
   bufferAllocator.io.freePage.ready := false.B
-  dest.ready := false.B
+  dest.io.deq.ready := false.B
   switch (state) {
     is (s_idle) {
       when (fsmResourceOk && pageAvailable && io.portDataIn.bits.code.isSop()) {
@@ -115,16 +116,18 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           schedOutHold.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
           linkWriteSend.io.enq.bits.data.nextPageValid := false.B
           linkWriteSend.io.enq.valid := true.B
-          io.interface.refCountAdd.get.valid := multicast
-          schedOutHold.dest := dest.bits.dest
+          if (c.MaxReferenceCount > 1) {
+            io.interface.refCountAdd.get.valid := multicast
+          }
+          schedOutHold.dest := dest.io.deq.bits.dest
 
           // last state optimization -- if scheduler has credit available, then dispatch immediately
           // otherwise store info and jump to sched state to wait
 
-          when (dest.valid && schedOutSend.io.enq.ready) {
+          when (schedOutSend.io.enq.ready) {
             schedOutSend.io.enq.valid := true.B
-            dest.ready := true.B
-            schedOutSend.io.enq.bits.dest := dest.bits.dest
+            dest.io.deq.ready := true.B
+            schedOutSend.io.enq.bits.dest := dest.io.deq.bits.dest
             state := s_idle
           }.otherwise {
             state := s_sched
@@ -136,7 +139,9 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           // write the link, then copy out the next page into the current page
           when (pageCount === (c.LinesPerPage-1).U) {
             linkWriteSend.io.enq.valid := true.B
-            io.interface.refCountAdd.get.valid := multicast
+            if (c.MaxReferenceCount > 1) {
+              io.interface.refCountAdd.get.valid := multicast
+            }
             currentPage := bufferAllocator.io.freePage.bits
             bufferAllocator.io.freePage.ready := true.B
             pageCount := 0.U
@@ -149,8 +154,8 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
     // wait state for when scheduler is not ready
     is (s_sched) {
-      when (dest.valid && schedOutSend.io.enq.ready) {
-        dest.ready := true.B
+      when (schedOutSend.io.enq.ready) {
+        dest.io.deq.ready := true.B
         schedOutSend.io.enq.valid := true.B
         state := s_idle
       }

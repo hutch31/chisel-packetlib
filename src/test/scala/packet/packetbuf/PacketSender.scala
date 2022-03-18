@@ -22,26 +22,28 @@ class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends
   // latch incoming packet send requests
   val info = Module(new Queue(new PacketRequest, reqSize))
   val txq = Module(new Queue(new PacketData(wordSize), 2))
+  val destq = Module(new Queue(new RoutingResult(ReadClients), 2))
   val count = Reg(UInt(16.W))
   val s_idle :: s_packet :: Nil = Enum(2)
   val state = RegInit(init=s_idle)
   io.sendPacket <> info.io.enq
   io.packetData <> txq.io.deq
+  io.destIn <> destq.io.deq
 
   info.io.deq.ready := false.B
   txq.io.enq.valid := false.B
   txq.io.enq.bits := 0.asTypeOf(new PacketData(wordSize))
   txq.io.enq.bits.code.code := packet.packetBody
 
-  io.destIn.valid := false.B
-  io.destIn.bits.dest := 1 << info.io.deq.bits.dst
+  destq.io.enq.valid := false.B
+  destq.io.enq.bits.dest := 1 << info.io.deq.bits.dst
 
   switch (state) {
     is (s_idle) {
       when (info.io.deq.valid && txq.io.count === 0.U) {
         count := 0.U
         state := s_packet
-        io.destIn.valid := true.B
+        destq.io.enq.valid := true.B
       }
     }
 
