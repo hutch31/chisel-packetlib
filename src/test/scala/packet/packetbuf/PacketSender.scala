@@ -102,17 +102,21 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
   val packetSrc = Wire(UInt(8.W))
   val packetDst = Wire(UInt(8.W))
   val queueEmpty = Wire(Vec(senders, Bool()))
+  val rxPacketLen = Reg(UInt(16.W))
+  val expPacketLen = Reg(UInt(16.W))
+  val checkLength = RegNext(next=io.packetData.bits.code.isEop())
 
-  io.packetData.ready := true.B
+  io.packetData.ready := io.sendPacket.valid
   io.expQueueEmpty := Cat(queueEmpty).andR()
 
-  io.sendPacket.ready := true.B
+  io.sendPacket.ready := checkLength
   for (i <- 0 until senders) {
     pidQueue(i).io.enq.valid := pidQueueValid(i)
     pidQueue(i).io.deq.ready := queueReady(i)
     pidQueue(i).io.enq.bits := io.sendPacket.bits
     queueData(i) := pidQueue(i).io.deq.bits
     queueEmpty(i) := pidQueue(i).io.count === 0.U
+    expPacketLen := io.sendPacket.bits.length
   }
   when (io.sendPacket.valid) {
     pidQueueValid := 1.U << io.sendPacket.bits.src
@@ -124,16 +128,29 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
   packetSrc := io.packetData.bits.data(2)
   packetDst := io.packetData.bits.data(3)
 
+  io.error := false.B
   when (io.packetData.valid && io.packetData.bits.code.isSop()) {
     queueReady := 1.U << packetSrc
+    rxPacketLen := wordSize.U
     when (packetId =/= queueData(packetSrc).pid || packetDst =/= queueData(packetSrc).dst) {
       io.error := true.B
-    }.otherwise {
-      io.error := false.B
     }
   }.otherwise {
-    io.error := false.B
+    when (io.packetData.fire()) {
+      when (io.packetData.bits.code.isEop()) {
+        rxPacketLen := rxPacketLen + io.packetData.bits.count + 1.U
+      }.otherwise {
+        rxPacketLen := rxPacketLen + wordSize.U
+      }
+    }
     queueReady := 0.U
+  }
+
+  when (checkLength) {
+    when (rxPacketLen =/= expPacketLen) {
+      printf("Received packet len %d != %d\n", rxPacketLen, expPacketLen)
+      io.error := true.B
+    }
   }
 }
 

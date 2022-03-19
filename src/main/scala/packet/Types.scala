@@ -20,9 +20,9 @@ class PacketCode extends Bundle {
  * The count field is valid only for the last (eop) word of data, and indicates how many bytes of that
  * word are valid.  For all other words, this should be set as 0.U and read as don't care
   */
-class PacketData(size: Int) extends Bundle {
+class PacketData(val size: Int) extends Bundle {
   val data = Vec(size, UInt(8.W))
   val count = UInt(log2Ceil(size).W)
   val code = new PacketCode
-  override def cloneType = new PacketData(size).asInstanceOf[this.type]
+  def getLength() : UInt = { this.count + 1.U }
 }

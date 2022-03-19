@@ -30,7 +30,6 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
   val lastWordEop = Wire(Bool())
   val fullCondition = Wire(Bool())
   val byteCount = Reg(UInt(log2Ceil(outWidth).W))
-  val nextByteCount = Wire(UInt(log2Ceil(outWidth).W))
 
   lastWordEop := (wordsStored =/= 0.U) && accum(wordsStored-1.U).code.isEop()
   fullCondition := lastWordEop || (wordsStored === maxWords.U)
@@ -59,31 +58,24 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
   when (lastWordEop) {
     io.out.bits.count := accum(wordsStored-1).count + byteCount
   }.otherwise {
-    io.out.bits.count := inWidth.U + byteCount
-  }
-
-  when (io.in.bits.code.isEop()) {
-    nextByteCount := io.in.bits.count
-  }.otherwise {
-    nextByteCount := inWidth.U
+    io.out.bits.count := (inWidth-1).U + byteCount
   }
 
   io.out.valid := false.B
 
   when (fullCondition) {
     io.out.valid := true.B
+    byteCount := 0.U
     when (shiftCondition) {
       wordsStored := 1.U
       accum(0) := io.in.bits
-      byteCount := nextByteCount
     }.elsewhen (io.out.ready) {
       wordsStored := 0.U
-      byteCount := 0.U
     }
   }.elsewhen (!fullCondition && io.in.valid) {
     accum(wordsStored) := io.in.bits
     wordsStored := wordsStored + 1.U
-    byteCount := byteCount + nextByteCount
+    byteCount := byteCount + inWidth.U
   }
 }
 
