@@ -12,10 +12,11 @@ class PageListEntry(c : BufferConfig) extends Bundle {
   override def cloneType = new PageListEntry(c).asInstanceOf[this.type]
 }
 
-class WordMetadata(WordSize : Int) extends Bundle {
+class WordMetadata(val c : BufferConfig) extends Bundle {
   val code = new PacketCode()
-  val count = UInt(log2Ceil(WordSize).W)
-  override def cloneType = new WordMetadata(WordSize).asInstanceOf[this.type]
+  val count = UInt(log2Ceil(c.WordSize).W)
+  val pageValid = Bool()
+  val page = new PageType(c)
 }
 
 class PacketReader(c : BufferConfig) extends Module {
@@ -33,7 +34,7 @@ class PacketReader(c : BufferConfig) extends Module {
   val bufferReadTx = Module(new DCCreditSender(new BufferReadReq(c), c.linkReadCredit))
   val schedRx = Module(new DCCreditReceiver(new SchedulerReq(c), 1))
   val txq = Module(new Queue(new PacketData(c.WordSize), c.ReadWordBuffer).suggestName("ReaderTransmitQueue"))
-  val metaQueue = Module(new Queue(new WordMetadata(c.WordSize), c.ReadWordBuffer).suggestName("ReaderMetaQueue"))
+  val metaQueue = Module(new Queue(new WordMetadata(c), c.ReadWordBuffer).suggestName("ReaderMetaQueue"))
   val txRequestCount = RegInit(init=0.U(log2Ceil(c.ReadWordBuffer+1).W))
   val ws_idle :: ws_wait_link :: Nil = Enum(2)
   val walkState = RegInit(init=ws_idle)
@@ -104,6 +105,7 @@ class PacketReader(c : BufferConfig) extends Module {
   metaQueue.io.enq.valid := false.B
   metaQueue.io.enq.bits.code.code := packet.packetBody
   metaQueue.io.enq.bits.count := 0.U
+  metaQueue.io.enq.bits.pageValid := false.B
 
   // buffer read requests are always from our ID, for the page at the head of the pageList
   bufferReadTx.io.enq.valid := false.B
@@ -113,8 +115,10 @@ class PacketReader(c : BufferConfig) extends Module {
 
   io.pageLinkError := false.B
 
-  freeListTx.io.enq.valid := false.B
-  freeListTx.io.enq.bits := pageList.io.deq.bits.page
+  //freeListTx.io.enq.valid := false.B
+  //freeListTx.io.enq.bits := pageList.io.deq.bits.page
+  freeListTx.io.enq.bits := metaQueue.io.deq.bits.page
+  metaQueue.io.enq.bits.page := pageList.io.deq.bits.page
 
   val txResourceUsed = txRequestCount +& txq.io.count
   val fsIdleReady = metaQueue.io.enq.ready & pageList.io.deq.valid & length.io.deq.valid & bufferReadTx.io.enq.ready
@@ -154,7 +158,8 @@ class PacketReader(c : BufferConfig) extends Module {
           metaQueue.io.enq.bits.count := bytesRemaining - 1.U
           fetchState := fs_idle
           pageList.io.deq.ready := true.B
-          freeListTx.io.enq.valid := true.B
+          metaQueue.io.enq.bits.pageValid := true.B
+          //freeListTx.io.enq.valid := true.B
           io.pageLinkError := !pageList.io.deq.bits.lastPage
           pageCount := 0.U
         }.otherwise {
@@ -162,12 +167,14 @@ class PacketReader(c : BufferConfig) extends Module {
           when (pageCount === (c.LinesPerPage-1).U) {
             pageCount := 0.U
             pageList.io.deq.ready := true.B
-            freeListTx.io.enq.valid := true.B
+            //freeListTx.io.enq.valid := true.B
+            metaQueue.io.enq.bits.pageValid := true.B
             io.pageLinkError := !pageList.io.deq.bits.lastPage
           }.otherwise {
             pageCount := pageCount + 1.U
           }
         }
+        printf("Reader %d rreq page=%d/%d line=%d\n", io.id, bufferReadTx.io.enq.bits.page.pool, bufferReadTx.io.enq.bits.page.pageNum, bufferReadTx.io.enq.bits.line)
       }
     }
   }
@@ -176,6 +183,7 @@ class PacketReader(c : BufferConfig) extends Module {
   // Once data arrives, join the data request with the prepared metadata and place it in the output queue
   txq.io.enq.valid := io.bufferReadResp.valid & io.bufferReadResp.bits.req.requestor === io.id
   metaQueue.io.deq.ready := txq.io.enq.valid
+  freeListTx.io.enq.valid := metaQueue.io.deq.bits.pageValid & metaQueue.io.deq.fire()
   txq.io.enq.bits.code.code := metaQueue.io.deq.bits.code.code
   txq.io.enq.bits.count := metaQueue.io.deq.bits.count
   txq.io.enq.bits.data := io.bufferReadResp.bits.data

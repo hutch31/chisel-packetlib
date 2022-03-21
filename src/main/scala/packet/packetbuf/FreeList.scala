@@ -32,7 +32,7 @@ class FreeList(c : BufferConfig) extends Module {
     val retXbarHold = for (i <- 0 until c.NumPools) yield Module(new DCOutput(new PageType(c)))
 
     if (c.MaxReferenceCount > 1)  {
-      val refCount = for (i <- 0 until c.NumPools) yield Module(new FreeListRefCount(c))
+      val refCount = for (i <- 0 until c.NumPools) yield Module(new FreeListRefCount(c)).suggestName("refCount_"+i.toString)
       val refcountXbar = Module(new DCCrossbar(new RefCountAdd(c), inputs = c.WriteClients, outputs = c.NumPools))
 
       refcountXbar.io.c <> io.refCountAdd.get
@@ -110,8 +110,8 @@ class FreeList(c : BufferConfig) extends Module {
     reqOutDemux.io.sel := listPools(0).io.requestOut.bits.requestor
 
     if (c.MaxReferenceCount > 1)  {
-      val refCount = Module(new FreeListRefCount(c))
-      val refcountDemux = Module(new DCArbiter(new RefCountAdd(c),  c.WriteClients, false))
+      val refCount = Module(new FreeListRefCount(c)).suggestName("refCount")
+      val refcountDemux = Module(new DCArbiter(new RefCountAdd(c),  c.WriteClients, false)).suggestName("refcountDemux")
 
       refcountDemux.io.c <> io.refCountAdd.get
       refCount.io.refCountAdd <> refcountDemux.io.p

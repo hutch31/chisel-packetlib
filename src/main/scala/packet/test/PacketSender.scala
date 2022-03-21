@@ -1,9 +1,10 @@
-package packet.packetbuf
+package packet.test
 
-import packet._
 import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
+import packet._
+import packet.packetbuf.RoutingResult
 
 class PacketRequest extends Bundle {
   val length = UInt(16.W)
@@ -18,6 +19,7 @@ class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends
     val packetData = Decoupled(new PacketData(wordSize))
     val sendPacket = Flipped(Decoupled(new PacketRequest))
     val destIn = Decoupled(new RoutingResult(ReadClients))
+    val id = Input(UInt(8.W))
   })
   // latch incoming packet send requests
   val info = Module(new Queue(new PacketRequest, reqSize))
@@ -51,7 +53,7 @@ class PacketSender(wordSize : Int, ReadClients : Int, reqSize : Int = 4) extends
       txq.io.enq.valid := true.B
       when(txq.io.enq.ready) {
         when (count === 0.U) {
-          printf("Sending packet PID=%d src=%d dst=%d\n", info.io.deq.bits.pid, info.io.deq.bits.src, info.io.deq.bits.dst)
+          printf("INFO : TX%d Sending packet PID=%d src=%d dst=%d len=%d\n", io.id, info.io.deq.bits.pid, info.io.deq.bits.src, info.io.deq.bits.dst, info.io.deq.bits.length)
           txq.io.enq.bits.code.code := packet.packetSop
           for (i <- 0 to wordSize - 1) {
             i match {
@@ -93,6 +95,7 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
     val sendPacket = Flipped(Decoupled(new PacketRequest))
     val error = Output(Bool())
     val expQueueEmpty = Output(Bool())
+    val id = Input(UInt(8.W))
   })
   val pidQueue = for (i <- 0 until senders) yield Module(new Queue(new PacketRequest, reqSize))
   val queueData = Wire(Vec(senders, new PacketRequest))
@@ -104,19 +107,19 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
   val queueEmpty = Wire(Vec(senders, Bool()))
   val rxPacketLen = Reg(UInt(16.W))
   val expPacketLen = Reg(UInt(16.W))
-  val checkLength = RegNext(next=io.packetData.bits.code.isEop())
+  val checkLength = RegInit(init=false.B)
 
-  io.packetData.ready := io.sendPacket.valid
   io.expQueueEmpty := Cat(queueEmpty).andR()
+  checkLength := false.B
 
-  io.sendPacket.ready := checkLength
+  io.sendPacket.ready := true.B
+
   for (i <- 0 until senders) {
     pidQueue(i).io.enq.valid := pidQueueValid(i)
     pidQueue(i).io.deq.ready := queueReady(i)
     pidQueue(i).io.enq.bits := io.sendPacket.bits
     queueData(i) := pidQueue(i).io.deq.bits
     queueEmpty(i) := pidQueue(i).io.count === 0.U
-    expPacketLen := io.sendPacket.bits.length
   }
   when (io.sendPacket.valid) {
     pidQueueValid := 1.U << io.sendPacket.bits.src
@@ -128,16 +131,22 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
   packetSrc := io.packetData.bits.data(2)
   packetDst := io.packetData.bits.data(3)
 
+  io.packetData.ready := true.B
   io.error := false.B
   when (io.packetData.valid && io.packetData.bits.code.isSop()) {
     queueReady := 1.U << packetSrc
     rxPacketLen := wordSize.U
     when (packetId =/= queueData(packetSrc).pid || packetDst =/= queueData(packetSrc).dst) {
+      printf("ERROR: RX%d Received PID %d != %d, dst %d != %d\n", io.id, packetId, queueData(packetSrc).pid, packetDst, queueData(packetSrc).dst)
       io.error := true.B
+    }.otherwise {
+      printf("INFO : RX%d Received PID %d from %d\n", io.id, packetId, packetSrc)
     }
+    expPacketLen := queueData(packetSrc).length
   }.otherwise {
     when (io.packetData.fire()) {
       when (io.packetData.bits.code.isEop()) {
+        checkLength := true.B
         rxPacketLen := rxPacketLen + io.packetData.bits.count + 1.U
       }.otherwise {
         rxPacketLen := rxPacketLen + wordSize.U
@@ -148,7 +157,7 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
 
   when (checkLength) {
     when (rxPacketLen =/= expPacketLen) {
-      printf("Received packet len %d != %d\n", rxPacketLen, expPacketLen)
+      printf("ERROR: RX%d Received packet len %d != %d\n", io.id, rxPacketLen, expPacketLen)
       io.error := true.B
     }
   }

@@ -79,7 +79,7 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
   // all resources needed by the state machine are available
   val pageAvailable = bufferAllocator.io.freePage.valid || ((state === s_page) && !(pageCount === (c.LinesPerPage-1).U))
-  val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready & dest.io.deq.valid
+  val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready & dest.io.deq.valid & linkWriteSend.io.enq.ready
   val multicast = PopCount(dest.io.deq.bits.dest) =/= 1.U
 
   if (c.MaxReferenceCount > 1) {
@@ -114,12 +114,12 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
         when (io.portDataIn.bits.code.isEop()) {
           schedOutHold.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
+          schedOutHold.dest := dest.io.deq.bits.dest
           linkWriteSend.io.enq.bits.data.nextPageValid := false.B
           linkWriteSend.io.enq.valid := true.B
           if (c.MaxReferenceCount > 1) {
             io.interface.refCountAdd.get.valid := multicast
           }
-          schedOutHold.dest := dest.io.deq.bits.dest
 
           // last state optimization -- if scheduler has credit available, then dispatch immediately
           // otherwise store info and jump to sched state to wait
@@ -127,7 +127,9 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
           when (schedOutSend.io.enq.ready) {
             schedOutSend.io.enq.valid := true.B
             dest.io.deq.ready := true.B
+            // need to change these two items from schedOutHold defaults for single-cycle lookahead
             schedOutSend.io.enq.bits.dest := dest.io.deq.bits.dest
+            schedOutSend.io.enq.bits.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
             state := s_idle
           }.otherwise {
             state := s_sched
@@ -164,7 +166,6 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
 
 
   // Insert the data from portDataIn on to the ring, waiting for our slot number to come up
-  //dataQ.io.deq.ready := false.B
   io.writeReqOut.valid := interfaceOutValid
   io.writeReqOut.bits := interfaceOutReg
   lineInfoHold.io.deq.ready := false.B
@@ -173,7 +174,6 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
     printf("Writer %d wr page=%d/%d line=%d data=%x\n", io.id, lineInfoHold.io.deq.bits.page.pool, lineInfoHold.io.deq.bits.page.pageNum, lineInfoHold.io.deq.bits.line, lineInfoHold.io.deq.bits.data.asUInt())
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
-    //dataQ.io.deq.ready := true.B
     interfaceOutReg.slot := io.id;
     interfaceOutReg.data := lineInfoHold.io.deq.bits.data
     interfaceOutReg.line := lineInfoHold.io.deq.bits.line

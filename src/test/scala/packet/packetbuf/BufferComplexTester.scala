@@ -30,15 +30,16 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
             c.io.req.bits.src.poke(src.U)
             c.io.req.bits.dst.poke(dst.U)
             c.io.req.bits.pid.poke(pid.U)
-            c.io.req.bits.length.poke(8.U)
+            c.io.req.bits.length.poke((8+pid).U)
             c.clock.step(1)
             pid += 1
           }
         }
 
         c.io.req.valid.poke(false.B)
-        c.clock.step(150)
+        c.clock.step(350)
         c.io.error.expect(false.B)
+        c.io.pagesUsed.expect(readClients.U)
         c.io.expQueueEmpty.expect(true.B)
       }
     }

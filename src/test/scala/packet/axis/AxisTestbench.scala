@@ -3,7 +3,7 @@ package packet.axis
 import chisel.lib.dclib.DCMirror
 import chisel3._
 import chisel3.util.ValidIO
-import packet.packetbuf._
+import packet.test.{PacketReceiver, PacketRequest, PacketSender}
 
 class AxisTestbench (width : Int) extends Module {
   val io = IO(new Bundle {
@@ -19,6 +19,8 @@ class AxisTestbench (width : Int) extends Module {
   reqmirror.io.c.valid := io.req.valid
   reqmirror.io.dst := 3.U
   reqmirror.io.c.bits := io.req.bits
+  sender.io.id := 0.U
+  receiver.io.id := 0.U
 
   sender.io.sendPacket <> reqmirror.io.p(0)
   receiver.io.sendPacket <> reqmirror.io.p(1)
