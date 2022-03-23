@@ -160,12 +160,11 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
           }
           c.io.req.valid.poke(false.B)
 
-          c.clock.step(150)
+          c.clock.step(200)
           c.io.error.expect(false.B)
           c.io.expQueueEmpty.expect(true.B)
         }
       }
     }
   }
-
 }
