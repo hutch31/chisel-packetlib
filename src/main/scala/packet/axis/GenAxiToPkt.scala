@@ -5,14 +5,16 @@ import chisel3._
 import chisel3.util._
 import packet._
 
-class GenAxiToPkt(size: Int, user : Int = 0) extends Module {
+class GenAxiToPkt(size: Int, user : Int = 0, userBadCrc : Boolean = false) extends Module {
   val io = IO(new Bundle {
     val in = Flipped(new PktAxiStreaming(size, user))
     val out = Decoupled(new PacketData(size))
     val userOut = if(user > 0) Some(Output(UInt(user.W))) else None
     val error = Output(Bool())
   })
-  val in = Module(new DCInput(new GenAxiDataBits(size)))
+  override def desiredName: String = "GenAxiToPkt_W" + size.toString + "_U" + user.toString
+
+  val in = Module(new DCInput(new GenAxiDataBits(size, user)))
   val sopSent = RegInit(init=false.B)
 
   in.io.enq.valid := io.in.tvalid
@@ -20,6 +22,9 @@ class GenAxiToPkt(size: Int, user : Int = 0) extends Module {
   in.io.enq.bits.tdata := io.in.tdata
   in.io.enq.bits.tkeep := io.in.tkeep
   in.io.enq.bits.tlast := io.in.tlast
+  if (user > 0) {
+    in.io.enq.bits.tuser.get := io.in.tuser.get
+  }
 
   in.io.deq.ready :=  false.B
   io.out.valid := false.B
@@ -43,7 +48,15 @@ class GenAxiToPkt(size: Int, user : Int = 0) extends Module {
       io.out.bits.code.code := packetSop
       sopSent := true.B
     }.elsewhen (in.io.deq.bits.tlast) {
-      io.out.bits.code.code := packetGoodEop
+      if (userBadCrc) {
+        when (io.in.tuser.get(0)) {
+          io.out.bits.code.code := packetBadEop
+        }.otherwise {
+          io.out.bits.code.code := packetGoodEop
+        }
+      } else {
+        io.out.bits.code.code := packetGoodEop
+      }
       sopSent := false.B
     }
 
