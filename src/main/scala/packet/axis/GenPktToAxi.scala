@@ -43,5 +43,7 @@ class GenPktToAxi(size: Int, user : Int = 0, userBadCrc : Boolean = false) exten
   io.out.tdata := outHold.io.deq.bits.tdata
   io.out.tkeep := outHold.io.deq.bits.tkeep
   io.out.tlast := outHold.io.deq.bits.tlast
-  io.out.tuser.get := outHold.io.deq.bits.tuser.get
+  if (user > 0) {
+    io.out.tuser.get := outHold.io.deq.bits.tuser.get
+  }
 }
