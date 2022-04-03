@@ -53,10 +53,24 @@ class DCCreditReceiver[D <: Data](data: D, maxCredit: Int) extends Module {
   val ivalid = RegNext(io.enq.valid)
   val idata = RegNext(io.enq.bits)
   val outFifo = Module(new Queue(data.cloneType, maxCredit))
-  outFifo.io.enq.valid := ivalid
+  val nextCredit = WireDefault(0.B)
+
   outFifo.io.enq.bits := idata
+
+  // bypass the FIFO when empty and out is ready
+  when (io.deq.ready && (outFifo.io.count === 0.U)) {
+    nextCredit := ivalid
+    outFifo.io.enq.valid := false.B
+    outFifo.io.deq.ready := false.B
+    io.deq.valid := ivalid
+    io.deq.bits := idata
+  }.otherwise {
+    outFifo.io.enq.valid := ivalid
+    outFifo.io.enq.bits := idata
+    io.deq <> outFifo.io.deq
+    nextCredit := outFifo.io.deq.fire()
+  }
   io.fifoCount := outFifo.io.count
-  io.deq <> outFifo.io.deq
-  val ocredit = RegNext(next=outFifo.io.deq.fire(), init=false.B)
+  val ocredit = RegNext(next=nextCredit, init=false.B)
   io.enq.credit := ocredit
 }
