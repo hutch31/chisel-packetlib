@@ -58,10 +58,10 @@ class DCCreditReceiver[D <: Data](data: D, maxCredit: Int) extends Module {
   outFifo.io.enq.bits := idata
 
   // bypass the FIFO when empty
-  when (outFifo.io.count === 0.U) {
-    nextCredit := ivalid
+  when (!outFifo.io.deq.valid && (outFifo.io.count === 0.U)) {
     when (io.deq.ready) {
       outFifo.io.enq.valid := false.B
+      nextCredit := ivalid
     }.otherwise {
       outFifo.io.enq.valid := ivalid
     }
