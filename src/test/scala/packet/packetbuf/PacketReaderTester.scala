@@ -4,14 +4,11 @@ import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 import chiseltest._
-import org.scalatest._
-import chiseltest.experimental.TestOptionBuilder._
-import chiseltest.internal.WriteVcdAnnotation
-import chisel3.experimental.BundleLiterals._
+import org.scalatest.freespec.AnyFreeSpec
 import packet.generic.{Memgen1R1W, Memgen1RW}
 
-class PacketReaderTester extends FlatSpec with ChiselScalatestTester with Matchers {
-  it should "request pages after getting descriptor" in {
+class PacketReaderTester extends AnyFreeSpec with ChiselScalatestTester {
+   "request pages after getting descriptor" in {
     val pagePerPool = 32
     val requestor = 1
     val LinesPerPage = 4

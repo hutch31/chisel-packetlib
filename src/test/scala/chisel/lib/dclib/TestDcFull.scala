@@ -4,16 +4,13 @@ import chisel3._
 import chisel3.util._
 import chisel.lib.dclib.DCFull
 import chiseltest._
-import chiseltest.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
-import chiseltest.internal.WriteVcdAnnotation
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.freespec.AnyFreeSpec
 
 import scala.util.Random
 
-class TestDcFull extends FlatSpec with ChiselScalatestTester with Matchers {
-  behavior of "Testers2 with Queue"
+class TestDcFull extends AnyFreeSpec with ChiselScalatestTester {
 
-  it should "pass data" in {
+  "pass data" in {
     test(new DCFull(UInt(16.W))).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.enq.initSource().setSourceClock(c.clock)
@@ -31,7 +28,7 @@ class TestDcFull extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "work with flow control" in {
+  "work with flow control" in {
     test(new DCFull(UInt(16.W))).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.enq.valid.poke(1.B)
@@ -66,7 +63,7 @@ class TestDcFull extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "start and stop" in {
+  "start and stop" in {
     test(new DCFull(UInt(16.W))).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.enq.initSource().setSourceClock(c.clock)
@@ -93,7 +90,7 @@ class TestDcFull extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "start and stop randomly" in {
+  "start and stop randomly" in {
     test(new DCFull(UInt(16.W))).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.enq.initSource().setSourceClock(c.clock)

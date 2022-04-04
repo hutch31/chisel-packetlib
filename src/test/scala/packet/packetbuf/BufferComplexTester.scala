@@ -2,20 +2,14 @@ package packet.packetbuf
 
 import chisel.lib.dclib.DCDemux
 import chisel3._
-import chisel3.experimental.BundleLiterals.AddBundleLiteralConstructor
-import chisel3.tester.{decoupledToDriver, testableClock, testableData}
-import chisel3.tester.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
-import chisel3.util._
-import chiseltest.ChiselScalatestTester
-import chiseltest.internal.WriteVcdAnnotation
-import org.scalatest.{FlatSpec, Matchers}
+import chisel3.tester._
+import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
+import org.scalatest.freespec.AnyFreeSpec
 import packet.generic.{Memgen1R1W, Memgen1RW}
 import packet._
 
-class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Matchers{
-  behavior of "Testers2"
-
-  it should "send a packet" in {
+class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester{
+   "send a packet" in {
     val readClients = 4
     val writeClients = 4
     val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=1, MaxReferenceCount = 4)
@@ -45,7 +39,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
     }
   }
 
-  it should "link two pages" in {
+   "link two pages" in {
     val readClients = 2
     val writeClients = 2
     val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = 2)
@@ -84,7 +78,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
     }
   }
 
-  it should "have different writers and readers" in {
+   "have different writers and readers" in {
     for ((writeClients, readClients) <- List((2,5), (3,4), (5,2), (8,3), (3,8))) {
     //for ((writeClients, readClients) <- List(((3,8)))) {
       val cycles = 50 + readClients * writeClients * 10
@@ -115,7 +109,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
     }
   }
 
-  it should "work with high memory latency" in {
+   "work with high memory latency" in {
     for (memLatency <- List(2, 3, 5, 8)) {
       val readClients = 2
       val writeClients = 2
@@ -142,7 +136,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
     }
   }
 
-  it should "work with multiple pools" in {
+   "work with multiple pools" in {
     for (numPools <- List(2)) {
       val readClients = 4
       val writeClients = 4

@@ -5,8 +5,6 @@ import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 import chiseltest._
 import org.scalatest._
-import chiseltest.experimental.TestOptionBuilder._
-import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
 
 /*

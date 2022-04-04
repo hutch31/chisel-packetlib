@@ -3,10 +3,8 @@ package chisel.lib.dclib
 import chisel.lib.dclib._
 import chisel3._
 import chisel3.util._
-import chiseltest.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
 import chiseltest._
-import chiseltest.internal.WriteVcdAnnotation
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.freespec.AnyFreeSpec
 
 import scala.util.Random
 
@@ -23,17 +21,14 @@ class CreditB2B(credit : Int) extends Module {
   receiver.io.deq <> io.deq
 }
 
-class TestCredit extends FlatSpec with ChiselScalatestTester with Matchers {
-  behavior of "Testers2 with Queue"
-
-  it should "pass data" in {
+class TestCredit extends AnyFreeSpec with ChiselScalatestTester {
+  "pass data" in {
     test(new CreditB2B(5)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.enq.initSource().setSourceClock(c.clock)
         c.io.deq.initSink().setSinkClock(c.clock)
 
         val q = for (i <- 1 to 100) yield i.U(16.W)
-        //val q = Seq(10.U, 20.U)
 
         fork {
           c.io.enq.enqueueSeq(q)
@@ -44,7 +39,7 @@ class TestCredit extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "start and stop" in {
+  "start and stop" in {
     test(new CreditB2B(3)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.enq.initSource().setSourceClock(c.clock)
@@ -71,7 +66,7 @@ class TestCredit extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "start and stop randomly" in {
+  "start and stop randomly" in {
     for (credit <- 1 to 8) {
       test(new CreditB2B(credit)).withAnnotations(Seq(WriteVcdAnnotation)) {
         c => {

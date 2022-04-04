@@ -1,17 +1,14 @@
 package packet.dp
 
 import chisel3._
-import chisel3.tester.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
 import chisel3.tester.{testableClock, testableData}
-import chiseltest.ChiselScalatestTester
-import chiseltest.internal.WriteVcdAnnotation
-import org.scalatest.{FlatSpec, Matchers}
+import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
+import org.scalatest.freespec.AnyFreeSpec
 import packet._
 
-class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
-  behavior of "Testers2"
+class TestBusResize extends AnyFreeSpec with ChiselScalatestTester {
 
-  it should "accept multiple words until full" in {
+  "accept multiple words until full" in {
     test(new BusUpsize(2, 4)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         // send in first word of data
@@ -69,7 +66,7 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "upsize propagate SOP" in {
+  "upsize propagate SOP" in {
     test(new BusUpsize(1, 4)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.in.valid.poke(true.B)
@@ -90,7 +87,7 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "upsize propagate EOP" in {
+  "upsize propagate EOP" in {
     test(new BusUpsize(1, 4)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         for (endWord <- 0 to 3) {
@@ -117,7 +114,7 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "split body word into multiple words" in {
+  "split body word into multiple words" in {
     test(new BusDownsize(4, 1)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.in.valid.poke(true.B)
@@ -147,7 +144,7 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "stop on EOP" in {
+   "stop on EOP" in {
     for (endWord <- 0 to 3) {
       test(new BusDownsize(4, 1)).withAnnotations(Seq(WriteVcdAnnotation)) {
         c => {
@@ -185,7 +182,7 @@ class TestBusResize extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "start on SOP" in {
+   "start on SOP" in {
     test(new BusDownsize(4, 1)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
         c.io.in.valid.poke(true.B)

@@ -2,17 +2,13 @@ package packet.dp
 
 
 import chisel3._
-import chisel3.tester.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
 import chisel3.tester.{testableClock, testableData}
-import chiseltest.ChiselScalatestTester
-import chiseltest.internal.WriteVcdAnnotation
-import org.scalatest.{FlatSpec, Matchers}
-import packet._
+import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
+import org.scalatest.freespec.AnyFreeSpec
 
-class PacketBusResize extends FlatSpec with ChiselScalatestTester with Matchers{
-  behavior of "Testers2"
+class PacketBusResize extends AnyFreeSpec with ChiselScalatestTester {
 
-  it should "receive correct packet size on upsize" in {
+  "receive correct packet size on upsize" in {
     val in_width = 4
     val out_width = 48
     test(new ResizeTestbench(in_width, out_width)).withAnnotations(Seq(WriteVcdAnnotation)) {
@@ -30,7 +26,7 @@ class PacketBusResize extends FlatSpec with ChiselScalatestTester with Matchers{
     }
   }
 
-  it should "receive correct packet size on downsize" in {
+  "receive correct packet size on downsize" in {
     val in_width = 48
     val out_width = 4
     test(new ResizeTestbench(in_width, out_width)).withAnnotations(Seq(WriteVcdAnnotation)) {

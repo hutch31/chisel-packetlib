@@ -4,16 +4,14 @@ import chisel3._
 import chiseltest._
 import org.scalatest._
 import chiseltest.ChiselScalatestTester
-import chiseltest.experimental.TestOptionBuilder._
-import chiseltest.internal.WriteVcdAnnotation
 import chisel3.experimental.BundleLiterals._
+import org.scalatest.freespec.AnyFreeSpec
 import packet.generic.{Memgen1R1W, Memgen1RW}
 
-class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
-    behavior of "Testers2 with Queue"
+class FreeListTester extends AnyFreeSpec with ChiselScalatestTester {
 
     // gets strange "none.get" error from freeRequestIn
-    ignore should "init all pages" in {
+    "init all pages" in {
       val pagePerPool = 8
       val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW,1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
 
@@ -40,7 +38,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
       }
     }
 
-  it should "not free page until ref count zero" in {
+  "not free page until ref count zero" in {
     val pagePerPool = 4
     val numPools = 2
     val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2, MaxReferenceCount = 3)
@@ -91,7 +89,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "init all pages in multiple pools" in {
+   "init all pages in multiple pools" in {
     val pagePerPool = 16
     val numPools = 4
     val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2, MaxReferenceCount = 2)
@@ -127,7 +125,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "stall return on update conflict" in {
+   "stall return on update conflict" in {
     val pagePerPool = 16
     val numPools = 4
     val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2)
@@ -161,7 +159,7 @@ class FreeListTester extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  ignore should "init all pages in single pool" in {
+  "init all pages in single pool" in {
     val pagePerPool = 4
     val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, 1, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2)
     val poolNum = 0

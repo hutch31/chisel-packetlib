@@ -2,16 +2,13 @@ package packet.axis
 
 
 import chisel3._
-import chisel3.tester.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
 import chisel3.tester.{testableClock, testableData}
-import chiseltest.ChiselScalatestTester
-import chiseltest.internal.WriteVcdAnnotation
-import org.scalatest.{FlatSpec, Matchers}
+import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
+import org.scalatest.freespec.AnyFreeSpec
 
-class AxisTester extends FlatSpec with ChiselScalatestTester with Matchers {
-  behavior of "Testers2"
+class AxisTester extends AnyFreeSpec with ChiselScalatestTester {
 
-  it should "convert packets correctly" in {
+  "convert packets correctly" in {
     val width = 8
     test(new AxisTestbench(width)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
