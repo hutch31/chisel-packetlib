@@ -2,8 +2,6 @@ package org.ghutchis.codegen;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.Buffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -19,7 +17,6 @@ import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 import packet.generic.Memgen1R1W;
 import packet.generic.Memgen1RW;
 import packet.packetbuf.*;
-import scala.collection.immutable.Seq;
 
 public class GeneratorMain {
 	public static Namespace parseArgs(String[] args) {
@@ -39,13 +36,13 @@ public class GeneratorMain {
 	
     public static void main(String[] args) throws IOException {
     	Namespace parsed = parseArgs(args);
-    	
+
     	if (parsed.get("xml") == null) {
     		System.out.println("XML argument is required");
     		System.exit(0);
     	}
     	File xmlFile = new File(parsed.get("xml").toString());
-    	
+
         byte[] encoded = Files.readAllBytes(Paths.get(xmlFile.getPath()));
         String xmlConfig = new String(encoded, StandardCharsets.UTF_8);
         PacketBufferGeneration device = PacketBufferGenerationFactory.unmarshalResponse(xmlConfig);

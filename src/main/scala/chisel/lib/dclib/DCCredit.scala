@@ -9,15 +9,13 @@ import chisel3.util._
  * This is useful for building systems which are insensitive to variable latency
  * delays.
  */
-class CreditIO[D <: Data](data: D) extends Bundle {
+class CreditIO[D <: Data](val data: D) extends Bundle {
   val valid = Output(Bool())
   val credit = Input(Bool())
-  val bits = Output(data.cloneType)
-  override def cloneType =
-    new CreditIO(bits.cloneType).asInstanceOf[this.type]
+  val bits = Output(data)
 }
 
-class DCCreditSender[D <: Data](data: D, maxCredit: Int) extends Module {
+class DCCreditSender[D <: Data](val data: D, val maxCredit: Int) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(Decoupled(data.cloneType))
     val deq = new CreditIO(data.cloneType)
@@ -28,20 +26,20 @@ class DCCreditSender[D <: Data](data: D, maxCredit: Int) extends Module {
 
   val icredit = RegNext(io.deq.credit)
   val curCredit = RegInit(init=maxCredit.U)
-  when (icredit && !io.enq.fire()) {
+  when (icredit && !io.enq.fire) {
     curCredit := curCredit + 1.U
-  }.elsewhen(!icredit && io.enq.fire()) {
+  }.elsewhen(!icredit && io.enq.fire) {
     curCredit := curCredit - 1.U
   }
   io.enq.ready := curCredit > 0.U
-  val dataOut = RegEnable(next=io.enq.bits, enable=io.enq.fire())
-  val validOut = RegNext(next=io.enq.fire(), init=false.B)
+  val dataOut = RegEnable(next=io.enq.bits, enable=io.enq.fire)
+  val validOut = RegNext(next=io.enq.fire, init=false.B)
   io.deq.valid := validOut
   io.deq.bits := dataOut
   io.curCredit := curCredit
 }
 
-class DCCreditReceiver[D <: Data](data: D, maxCredit: Int) extends Module {
+class DCCreditReceiver[D <: Data](val data: D, val maxCredit: Int) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(new CreditIO(data.cloneType))
     val deq = new DecoupledIO(data.cloneType)
@@ -72,7 +70,7 @@ class DCCreditReceiver[D <: Data](data: D, maxCredit: Int) extends Module {
     outFifo.io.enq.valid := ivalid
     outFifo.io.enq.bits := idata
     io.deq <> outFifo.io.deq
-    nextCredit := outFifo.io.deq.fire()
+    nextCredit := outFifo.io.deq.fire
   }
   io.fifoCount := outFifo.io.count
   val ocredit = RegNext(next=nextCredit, init=false.B)

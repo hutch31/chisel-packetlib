@@ -5,18 +5,16 @@ import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 import packet.packetbuf
 
-class BufferMemoryIO(c : BufferConfig) extends Bundle {
+class BufferMemoryIO(val c : BufferConfig) extends Bundle {
   val wrSlotReqIn = Input(Vec(c.WriteClients, Bool()))
   val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
   val writeReqOut = ValidIO(new BufferWriteReq(c))
   val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
   val readReqOut = ValidIO(new BufferReadReq(c))
   val readRespOut = ValidIO(new BufferReadResp(c))
-  override def cloneType =
-    new BufferMemoryIO(c).asInstanceOf[this.type]
 }
 
-class BufferMemory(c : BufferConfig) extends Module {
+class BufferMemory(val c : BufferConfig) extends Module {
   val io = IO(new BufferMemoryIO(c))
 
   val wrScheduler = Module(new RingScheduler(c.WriteClients))

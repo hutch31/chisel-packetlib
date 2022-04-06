@@ -5,17 +5,15 @@ import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 
-class FreeListIO(c : BufferConfig) extends Bundle {
+class FreeListIO(val c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
   val freeRequestOut = Vec(c.WriteClients, Decoupled(new PageResp(c)))
   val freeReturnIn = Vec(c.ReadClients, Flipped(Decoupled(new PageType(c))))
   val refCountAdd = if (c.MaxReferenceCount > 1) Some(Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))) else None
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
-  override def cloneType =
-    new FreeListIO(c).asInstanceOf[this.type]
 }
 
-class FreeList(c : BufferConfig) extends Module {
+class FreeList(val c : BufferConfig) extends Module {
   val io = IO(new FreeListIO(c))
   require (c.WriteClients >= 2)
   require (c.ReadClients >= 2)
@@ -47,7 +45,7 @@ class FreeList(c : BufferConfig) extends Module {
 
         // monitor request out so we know when initial page is allocated
         refCount(p).io.requestOut.bits := reqOutXbar.io.c(p).bits
-        refCount(p).io.requestOut.valid := reqOutXbar.io.c(p).fire()
+        refCount(p).io.requestOut.valid := reqOutXbar.io.c(p).fire
       }
     } else {
       for (p <- 0 until c.NumPools) {
@@ -82,12 +80,12 @@ class FreeList(c : BufferConfig) extends Module {
         retXbarHold(p).io.deq.ready := false.B
       }
 
-      when (reqOutXbar.io.c(p).fire()) {
+      when (reqOutXbar.io.c(p).fire) {
         sourcePage(reqOutXbar.io.c(p).bits.page.asAddr()) := listPools(p).io.requestOut.bits.requestor
         pagesPerPort(listPools(p).io.requestOut.bits.requestor) := pagesPerPort(listPools(p).io.requestOut.bits.requestor) + 1.U
       }
 
-      when (retXbarHold(p).io.deq.fire()) {
+      when (retXbarHold(p).io.deq.fire) {
         pagesPerPort(sourcePage(retXbarHold(p).io.deq.bits.asAddr())) := pagesPerPort(sourcePage(retXbarHold(p).io.deq.bits.asAddr())) - 1.U
       }
     }
@@ -121,13 +119,13 @@ class FreeList(c : BufferConfig) extends Module {
 
       // monitor request out so we know when initial page is allocated
       refCount.io.requestOut.bits := reqOutDemux.io.c.bits
-      refCount.io.requestOut.valid := reqOutDemux.io.c.fire()
+      refCount.io.requestOut.valid := reqOutDemux.io.c.fire
     } else {
       retMuxOut <> retMux.io.p
     }
 
-    val samePortUpdate = reqOutDemux.io.c.fire() && retMuxOut.fire() && listPools(0).io.requestOut.bits.requestor === sourcePage(retMuxOut.bits.asAddr())
-    when (reqOutDemux.io.c.fire()) {
+    val samePortUpdate = reqOutDemux.io.c.fire && retMuxOut.fire && listPools(0).io.requestOut.bits.requestor === sourcePage(retMuxOut.bits.asAddr())
+    when (reqOutDemux.io.c.fire) {
       sourcePage(listPools(0).io.requestOut.bits.page.asAddr()) := listPools(0).io.requestOut.bits.requestor
       when (!samePortUpdate) {
         pagesPerPort(listPools(0).io.requestOut.bits.requestor) := pagesPerPort(listPools(0).io.requestOut.bits.requestor) + 1.U
@@ -137,7 +135,7 @@ class FreeList(c : BufferConfig) extends Module {
 
     io.freeReturnIn <> retMux.io.c
     listPools(0).io.returnIn <> retMuxOut
-    when (retMuxOut.fire() && !samePortUpdate) {
+    when (retMuxOut.fire && !samePortUpdate) {
       pagesPerPort(sourcePage(retMuxOut.bits.asAddr())) := pagesPerPort(sourcePage(retMuxOut.bits.asAddr())) - 1.U
     }
   }

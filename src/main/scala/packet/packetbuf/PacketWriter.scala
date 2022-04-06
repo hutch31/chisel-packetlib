@@ -7,11 +7,10 @@ import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 
 
-class PacketLineInfo(c : BufferConfig) extends Bundle {
+class PacketLineInfo(val c : BufferConfig) extends Bundle {
   val data = Vec(c.WordSize, UInt(8.W))
   val page = new PageType(c)
   val line = UInt(log2Ceil(c.LinesPerPage).W)
-  override def cloneType = new PacketLineInfo(c).asInstanceOf[this.type]
 }
 
 /**
@@ -22,7 +21,7 @@ class PacketLineInfo(c : BufferConfig) extends Bundle {
  * @param c  Packet buffer configuration
  * @param id Unique ID for this packet writer, for write slot requests
  */
-class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
+class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
   val io = IO(new Bundle {
     val portDataIn = Flipped(Decoupled(new PacketData(c.WordSize)))
     val destIn = Flipped(Decoupled(new RoutingResult(c.ReadClients)))
@@ -206,9 +205,9 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
   io.freePage.bits := freeRespRx.io.deq.bits.page
 
   // keep number of outstanding requests below the amount of buffer credit available in the receiver
-  when (freeReqSender.io.enq.valid && !io.freePage.fire()) {
+  when (freeReqSender.io.enq.valid && !io.freePage.fire) {
     freePageReqCount := freePageReqCount + 1.U
-  }.elsewhen (!freeReqSender.io.enq.valid && io.freePage.fire()) {
+  }.elsewhen (!freeReqSender.io.enq.valid && io.freePage.fire) {
     freePageReqCount := freePageReqCount - 1.U
   }
 

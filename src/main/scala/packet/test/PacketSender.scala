@@ -144,7 +144,7 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
     }
     expPacketLen := queueData(packetSrc).length
   }.otherwise {
-    when (io.packetData.fire()) {
+    when (io.packetData.fire) {
       when (io.packetData.bits.code.isEop()) {
         checkLength := true.B
         rxPacketLen := rxPacketLen + io.packetData.bits.count + 1.U

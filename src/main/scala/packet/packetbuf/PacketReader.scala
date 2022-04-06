@@ -6,10 +6,9 @@ import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 
-class PageListEntry(c : BufferConfig) extends Bundle {
+class PageListEntry(val c : BufferConfig) extends Bundle {
   val page = new PageType(c)
   val lastPage = Bool()
-  override def cloneType = new PageListEntry(c).asInstanceOf[this.type]
 }
 
 class WordMetadata(val c : BufferConfig) extends Bundle {
@@ -19,7 +18,7 @@ class WordMetadata(val c : BufferConfig) extends Bundle {
   val page = new PageType(c)
 }
 
-class PacketReader(c : BufferConfig) extends Module {
+class PacketReader(val c : BufferConfig) extends Module {
   val io = IO(new Bundle {
     val id = Input(UInt(log2Ceil(c.ReadClients).W))
     val portDataOut = Decoupled(new PacketData(c.WordSize))
@@ -125,9 +124,9 @@ class PacketReader(c : BufferConfig) extends Module {
   val fsFetchReady = (txResourceUsed < c.ReadWordBuffer.U) & metaQueue.io.enq.ready & pageList.io.deq.valid & bufferReadTx.io.enq.ready & freeListTx.io.enq.ready
 
   // Track number of read requests in flight
-  when (bufferReadTx.io.enq.fire() && !txq.io.enq.fire()) {
+  when (bufferReadTx.io.enq.fire && !txq.io.enq.fire) {
     txRequestCount := txRequestCount + 1.U
-  }.elsewhen (!bufferReadTx.io.enq.fire() && txq.io.enq.fire()) {
+  }.elsewhen (!bufferReadTx.io.enq.fire && txq.io.enq.fire) {
     txRequestCount := txRequestCount - 1.U
   }
 
@@ -183,7 +182,7 @@ class PacketReader(c : BufferConfig) extends Module {
   // Once data arrives, join the data request with the prepared metadata and place it in the output queue
   txq.io.enq.valid := io.bufferReadResp.valid & io.bufferReadResp.bits.req.requestor === io.id
   metaQueue.io.deq.ready := txq.io.enq.valid
-  freeListTx.io.enq.valid := metaQueue.io.deq.bits.pageValid & metaQueue.io.deq.fire()
+  freeListTx.io.enq.valid := metaQueue.io.deq.bits.pageValid & metaQueue.io.deq.fire
   txq.io.enq.bits.code.code := metaQueue.io.deq.bits.code.code
   txq.io.enq.bits.count := metaQueue.io.deq.bits.count
   txq.io.enq.bits.data := io.bufferReadResp.bits.data
