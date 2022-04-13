@@ -56,6 +56,16 @@ class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
     val readData = Output(dtype)
   })
 
+  /*
+  val m = Reg(Vec(words, dtype))
+  val raddr = RegEnable(next=io.addr, enable=io.readEnable)
+
+  io.readData := m(raddr)
+  when (io.writeEnable) {
+    m(io.addr) := io.writeData
+  }
+
+   */
   val m = SyncReadMem(words, dtype)
 
   io.readData := 0.asTypeOf(dtype.cloneType)
@@ -80,6 +90,46 @@ class Memgen1RW {
 class Memgen1R1W {
   def apply[D <: Data](dtype: D, depth: Int, latency: Int=1) : Memory1R1W[D] = {
     new Memory1R1W(dtype, depth, latency)
+  }
+}
+
+class Adapter1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
+  val hsize = log2Ceil(words)
+
+  val io = IO(new Bundle {
+    val readAddr = Input(UInt(hsize.W))
+    val writeAddr = Input(UInt(hsize.W))
+    val readEnable = Input(Bool())
+    val writeEnable = Input(Bool())
+    val writeData = Input(dtype)
+    val readData = Output(dtype)
+  })
+
+  val m1p = for (i <- 0 to 1) yield Module(new Memory1RW(dtype, words, rlat))
+  val side = RegInit(init=VecInit(Seq.fill(words)(0.B)))
+  val readSel = side(io.readAddr)
+  val readSelD = ShiftRegister(readSel, rlat)
+
+  for (i <- 0 to 1) {
+    val thisReadSel = (i.U === readSel)
+    m1p(i).io.writeEnable := io.writeEnable & !thisReadSel
+    m1p(i).io.readEnable := io.readEnable & thisReadSel
+    when (thisReadSel) {
+      m1p(i).io.addr := io.readAddr
+    }.otherwise {
+      m1p(i).io.addr := io.writeAddr
+    }
+    m1p(i).io.writeData := io.writeData
+  }
+  when (readSelD) {
+    io.readData := m1p(1).io.readData
+  }.otherwise {
+    io.readData := m1p(0).io.readData
+  }
+
+  // reads have priority
+  when (io.writeEnable) {
+    side(io.writeAddr) := ~readSel
   }
 }
 
