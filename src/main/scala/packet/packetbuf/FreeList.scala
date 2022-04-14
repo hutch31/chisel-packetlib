@@ -4,6 +4,7 @@ import chisel.lib.dclib._
 import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
+import packet.generic.MemQueue
 
 class FreeListIO(c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
@@ -28,7 +29,7 @@ class FreeList(c : BufferConfig) extends Module {
   if (c.NumPools > 1) {
     val reqInXbar = Module(new DCCrossbar(new PageReq(c), inputs = c.WriteClients, outputs = c.NumPools))
     val reqOutXbar = Module(new DCCrossbar(new PageResp(c), inputs = c.NumPools, outputs = c.WriteClients))
-    val retXbar = Module(new DCCrossbar(new PageType(c), inputs = c.ReadClients, outputs = c.NumPools))
+    val retXbar = Module(new DCCrossbar(new PageType(c), inputs = c.IntReadClients, outputs = c.NumPools))
     val retXbarHold = for (i <- 0 until c.NumPools) yield Module(new DCOutput(new PageType(c)))
 
     if (c.MaxReferenceCount > 1)  {
@@ -93,7 +94,7 @@ class FreeList(c : BufferConfig) extends Module {
     }
     io.freeRequestOut <> reqOutXbar.io.p
 
-    for (rc <- 0 until c.ReadClients) {
+    for (rc <- 0 until c.IntReadClients) {
       retXbar.io.sel(rc) := io.freeReturnIn(rc).bits.pool
     }
     retXbar.io.c <> io.freeReturnIn
@@ -154,7 +155,8 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
   val s_init :: s_run :: Nil = Enum(2)
   val state = RegInit(init = s_init)
   val initCount = RegInit(init=0.U(pageBits.W))
-  val freeList = Module(new Queue(UInt(pageBits.W), c.PagePerPool).suggestName("FreeListQueue"))
+  //val freeList = Module(new Queue(UInt(pageBits.W), c.PagePerPool).suggestName("FreeListQueue"))
+  val freeList = Module(new MemQueue(UInt(pageBits.W), c.PagePerPool, c.mgen2p))
   val requestIn = DCInput(io.requestIn)
   val returnIn = Wire(Flipped(Decoupled(new PageType(c))))
   val requestOut = Wire(Decoupled(new PageResp(c)))
