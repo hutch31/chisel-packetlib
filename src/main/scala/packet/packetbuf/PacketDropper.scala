@@ -33,6 +33,8 @@ class PacketDropper (c : BufferConfig) extends Module {
 
   freeListTx.io.enq.bits := currentPage
   freeListTx.io.enq.valid := 0.B
+  linkListRx.io.deq.ready := 0.B
+  io.pageLinkError := 0.B
 
   switch (walkState) {
     is (ws_idle) {

@@ -42,6 +42,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   if (c.HasDropPort) {
     val dropper = Module(new PacketDropper(c))
     dropper.io.interface <> buffer.io.dropInterface.get
+    dropper.io.schedIn <> scheduler.io.dropOut.get
   }
 
   io.status <> buffer.io.status
@@ -69,11 +70,19 @@ class DirectScheduler(c : BufferConfig) extends Module {
     if (c.HasDropPort) {
       dropMux.get.io.c(i).bits := credRx(i).io.deq.bits
       when (credRx(i).io.deq.bits.dest === 0.U) {
-        credRx(i).io.deq.valid := 0.B
+        xbar.io.c(i).valid := 0.B
         dropMux.get.io.c(i).valid := credRx(i).io.deq.valid
         credRx(i).io.deq.ready := dropMux.get.io.c(i).ready
+      }.otherwise {
+        dropMux.get.io.c(i).valid := 0.B
       }
     }
+  }
+
+  if (c.HasDropPort) {
+    val dropSender = Module(new DCCreditSender(new SchedulerReq(c), 1))
+    dropSender.io.enq <> dropMux.get.io.p
+    io.dropOut.get <> dropSender.io.deq
   }
 
   for (i <- 0 until c.ReadClients) {
