@@ -12,6 +12,7 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
     val writeReqOut = ValidIO(new BufferWriteReq(c))
     val readRespOut = ValidIO(new BufferReadResp(c))
     val status = new BufferStatus(c)
+    val dropInterface = if (c.HasDropPort) Some(Flipped(new PacketDropInterface(c))) else None
   })
   val buffer = Module(new BufferMemory(c))
   val freeList = Module(new FreeList(c))
@@ -50,6 +51,19 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
     linkReadReqReceiver.io.deq <> linkList.io.readReq(i)
     linkList.io.readResp(i) <> linkReadRespSender.io.enq
     linkReadRespSender.io.deq <> io.readerInterface(i).linkListReadResp
+  }
+
+  if (c.HasDropPort) {
+    val returnReceiver = Module(new DCCreditReceiver(new PageType(c), c.credit))
+    val linkReadReqReceiver = Module(new DCCreditReceiver(new LinkListReadReq(c), c.credit))
+    val linkReadRespSender = Module(new DCCreditSender(new LinkListReadResp(c), c.credit))
+
+    io.dropInterface.get.linkListReadReq <> linkReadReqReceiver.io.enq
+    linkReadReqReceiver.io.deq <> linkList.io.readReq(c.ReadClients)
+    linkList.io.readResp(c.ReadClients) <> linkReadRespSender.io.enq
+    linkReadRespSender.io.deq <> io.dropInterface.get.linkListReadResp
+    returnReceiver.io.enq <> io.dropInterface.get.freeListReturn
+    returnReceiver.io.deq <> freeList.io.freeReturnIn(c.ReadClients)
   }
 
   // connect arbiter to read request in, take read requests as they come

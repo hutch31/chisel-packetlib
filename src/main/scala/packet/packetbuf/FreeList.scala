@@ -8,7 +8,7 @@ import chisel3.util._
 class FreeListIO(c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
   val freeRequestOut = Vec(c.WriteClients, Decoupled(new PageResp(c)))
-  val freeReturnIn = Vec(c.ReadClients, Flipped(Decoupled(new PageType(c))))
+  val freeReturnIn = Vec(c.IntReadClients, Flipped(Decoupled(new PageType(c))))
   val refCountAdd = if (c.MaxReferenceCount > 1) Some(Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))) else None
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   override def cloneType =
@@ -101,7 +101,7 @@ class FreeList(c : BufferConfig) extends Module {
     // degenerate case for single pool, removes need for input/output crossbars
     val reqInMux = Module(new DCArbiter(new PageReq(c), c.WriteClients, false))
     val reqOutDemux = Module(new DCDemux(new PageResp(c), c.WriteClients))
-    val retMux = Module(new DCArbiter(new PageType(c), c.ReadClients, false))
+    val retMux = Module(new DCArbiter(new PageType(c), c.IntReadClients, false))
     val retMuxOut = Wire(Decoupled(new PageType(c)))
 
     io.freeRequestIn <> reqInMux.io.c

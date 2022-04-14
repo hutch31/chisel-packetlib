@@ -34,8 +34,8 @@ class PacketWriter(c: BufferConfig, writeBuf : Int = 1) extends Module {
   })
 
   val dest = Module(new DCHold(new RoutingResult(c.ReadClients)))
-  val linkWriteSend = Module(new DCCreditSender(io.interface.linkListWriteReq.bits, c.linkWriteCredit))
-  val schedOutSend = Module(new DCCreditSender(io.schedOut.bits, c.schedWriteCredit))
+  val linkWriteSend = Module(new DCCreditSender(new LinkListWriteReq(c), c.linkWriteCredit))
+  val schedOutSend = Module(new DCCreditSender(new SchedulerReq(c), c.schedWriteCredit))
   val bufferAllocator = Module(new BasicPacketBufferAllocator(c))
   bufferAllocator.io.id := io.id
   io.destIn <> dest.io.enq
@@ -193,8 +193,8 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
     val freePage = Decoupled(new PageType(c))
     val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
-  val freeReqSender = Module(new DCCreditSender(io.freeListReq.bits, c.freeListReqCredit))
-  val freeRespRx = Module(new DCCreditReceiver(io.freeListPage.bits, c.freeListReqCredit))
+  val freeReqSender = Module(new DCCreditSender(new PageReq(c), c.freeListReqCredit))
+  val freeRespRx = Module(new DCCreditReceiver(new PageResp(c), c.freeListReqCredit))
   val freePageReqCount = RegInit(init=0.U(log2Ceil(c.freeListReqCredit+1).W))
 
   io.freeListReq <> freeReqSender.io.deq
