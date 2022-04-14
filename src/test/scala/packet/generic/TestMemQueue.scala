@@ -1,0 +1,73 @@
+package packet.generic
+
+import chisel3._
+import chisel3.util._
+import chiseltest._
+import chiseltest.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
+import chiseltest.internal.WriteVcdAnnotation
+import org.scalatest.{FlatSpec, Matchers}
+
+class TestMemQueue extends FlatSpec with ChiselScalatestTester with Matchers{
+  behavior of "Testers2 with Queue"
+
+  it should "read and write" in {
+    test(new MemQueue(UInt(16.W), 17, new Memgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation)) {
+      c => {
+        val rand = new scala.util.Random()
+        val cycles = 100
+        c.io.enq.initSource().setSourceClock(c.clock)
+        c.io.deq.initSink().setSinkClock(c.clock)
+
+        var tx : Int = 0
+        var rx : Int = 0
+        val tx_fc = Seq(0.5, 0.0, 0.25)
+        val rx_fc = Seq(0.1, 0.5, 0.25)
+
+        fork {
+          for (fc <- tx_fc) {
+            for (i <- 0 until cycles) {
+              c.io.enq.enqueue(tx.U)
+              tx += 1
+              if (rand.nextFloat() < fc) {
+                c.clock.step(1)
+              }
+            }
+          }
+        }.fork {
+          for (fc <- rx_fc) {
+            for (i <- 0 until cycles) {
+              c.io.deq.expectDequeue(rx.U)
+              rx += 1
+              if (rand.nextFloat() < fc) {
+                c.clock.step(1)
+              }
+            }
+          }
+        }.join()
+      }
+    }
+  }
+
+  it should "stop when full" in {
+    val depth = 5
+    test(new MemQueue(UInt(16.W), depth, new Memgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation)) {
+      c => {
+        val rand = new scala.util.Random()
+        val cycles = 100
+        c.io.enq.initSource().setSourceClock(c.clock)
+        c.io.deq.initSink().setSinkClock(c.clock)
+
+        c.io.enq.ready.expect(1.B)
+        for (i <- 0 until depth) {
+          c.io.enq.enqueue(i.U)
+        }
+        c.io.enq.ready.expect(0.B)
+
+        for (i <- 0 until depth) {
+          c.io.deq.expectDequeue(i.U)
+        }
+        c.io.deq.valid.expect(0.B)
+      }
+    }
+  }
+}

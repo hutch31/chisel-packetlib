@@ -7,7 +7,7 @@ import chisel3.tester.{decoupledToDriver, testableClock, testableData}
 import chisel3.tester.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
 import chisel3.util._
 import chiseltest.ChiselScalatestTester
-import chiseltest.internal.WriteVcdAnnotation
+import chiseltest.internal.{VerilatorBackendAnnotation, WriteVcdAnnotation}
 import org.scalatest.{FlatSpec, Matchers}
 import packet.generic.{Memgen1R1W, Memgen1RW}
 import packet._
@@ -20,7 +20,7 @@ class BufferComplexTester extends FlatSpec with ChiselScalatestTester with Match
     val writeClients = 4
     val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=1, MaxReferenceCount = 4)
 
-    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
       c => {
         var pid : Int = 1
 
