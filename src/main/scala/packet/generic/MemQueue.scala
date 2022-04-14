@@ -12,12 +12,14 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
 
   val mem = Module(gen.apply(data, depth, 1))
   val asz = log2Ceil(depth)
-  val wrptr = RegInit(init=0.U((asz+1).W))
-  val rdptr = RegInit(init=0.U((asz+1).W))
+  val wrptr = RegInit(init=0.U(asz.W))
+  val rdptr = RegInit(init=0.U(asz.W))
   val nxt_rdptr = WireDefault(rdptr)
-  val wrptr_p1 = wrptr + 1.U
-  val rdptr_p1 = rdptr + 1.U
-  val full = (wrptr(asz-1,0) === rdptr(asz-1,0)) && (wrptr(asz) === !rdptr(asz))
+  val nxt_wrptr = WireDefault(wrptr)
+  val wrptr_p1 = Wire(UInt(asz.W))
+  val rdptr_p1 = Wire(UInt(asz.W))
+  //val full = (wrptr(asz-1,0) === rdptr(asz-1,0)) && (wrptr(asz) === !rdptr(asz))
+  val full = RegInit(0.B)
   val wr_addr = wrptr(asz-1,0)
   val rd_addr = nxt_rdptr(asz-1,0)
   val wr_en = io.enq.valid & !full
@@ -25,16 +27,36 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
   val deq_valid = RegNext(next=nxt_valid, init=0.B)
   val rd_en = nxt_valid & !(deq_valid & !io.deq.ready)
 
+  def sat_add(ptr : UInt) : UInt = {
+    val plus1 = Wire(UInt(ptr.getWidth.W))
+    when (ptr === (depth-1).U) {
+      plus1 := 0.U
+    }.otherwise {
+      plus1 := ptr + 1.U
+    }
+    plus1
+  }
+
+  wrptr_p1 := sat_add(wrptr)
+  rdptr_p1 := sat_add(rdptr)
+
+  when (!full) {
+    full := (wrptr_p1 === rdptr) && (nxt_wrptr === nxt_rdptr)
+  }.otherwise {
+    full := !io.deq.fire()
+  }
+
   io.enq.ready := !full
 
   when (io.enq.valid & !full) {
-    wrptr := wrptr_p1
+    nxt_wrptr := wrptr_p1
   }
 
   when (io.deq.fire()) {
     nxt_rdptr := rdptr_p1
   }
   rdptr := nxt_rdptr
+  wrptr := nxt_wrptr
 
   mem.io.readEnable := rd_en
   mem.io.readAddr := rd_addr
