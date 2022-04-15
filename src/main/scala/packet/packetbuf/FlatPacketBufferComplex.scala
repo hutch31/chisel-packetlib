@@ -2,7 +2,7 @@ package packet.packetbuf
 
 import chisel.lib.dclib._
 import chisel3._
-import chisel3.util.{Decoupled, ValidIO}
+import chisel3.util._
 import packet.PacketData
 
 class FlatPacketBufferComplex(c : BufferConfig) extends Module {
@@ -11,12 +11,15 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     val portDataIn = Vec(c.WriteClients, Flipped(Decoupled(new PacketData(c.WordSize))))
     val destIn = Vec(c.WriteClients, Flipped(Decoupled(new RoutingResult(c.ReadClients))))
     val status = new BufferStatus(c)
+    val pkt_count = Output(new PacketCounters(c))
   })
   val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
   val writers = for (i <- 0 until c.WriteClients) yield Module(new PacketWriter(c))
   val buffer = Module(new FlatPacketBuffer(c))
   val scheduler = Module(new DirectScheduler(c))
 
+  val writePktInc = Wire(Vec(c.WriteClients, Bool()))
+  val readPktInc = Wire(Vec(c.ReadClients, Bool()))
   for (i <- 0 until c.WriteClients) {
     writers(i).io.id := i.U
     buffer.io.writerInterface(i) <> writers(i).io.interface
@@ -28,6 +31,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     } else {
       writers(i).io.writeReqIn := writers(i+1).io.writeReqOut
     }
+    writePktInc(i) := writers(i).io.schedOut.valid
   }
   buffer.io.writeReqIn := writers(0).io.writeReqOut
 
@@ -37,15 +41,21 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     readers(i).io.portDataOut <> io.portDataOut(i)
     readers(i).io.schedIn <> scheduler.io.schedOut(i)
     readers(i).io.bufferReadResp := buffer.io.readRespOut
+    readPktInc(i) := readers(i).io.schedIn.valid
   }
 
   if (c.HasDropPort) {
     val dropper = Module(new PacketDropper(c))
     dropper.io.interface <> buffer.io.dropInterface.get
     dropper.io.schedIn <> scheduler.io.dropOut.get
+    io.pkt_count.incDropCount := dropper.io.schedIn.valid
+  } else {
+    io.pkt_count.incDropCount := 0.B
   }
 
   io.status <> buffer.io.status
+  io.pkt_count.incTxCount := Cat(writePktInc.reverse)
+  io.pkt_count.incRxCount := Cat(readPktInc.reverse)
 }
 
 // Basic "scheduler" takes requests from source and sends them to their requested destination

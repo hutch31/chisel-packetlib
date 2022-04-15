@@ -26,13 +26,13 @@ class LinkListWriteReq(c : BufferConfig) extends Bundle {
 }
 
 class LinkListReadReq(c : BufferConfig) extends Bundle {
-  val requestor = UInt(log2Ceil(c.ReadClients).W)
+  val requestor = UInt(log2Ceil(c.IntReadClients).W)
   val addr = new PageType(c)
   override def cloneType = new LinkListReadReq(c).asInstanceOf[this.type]
 }
 
 class LinkListReadResp(c : BufferConfig) extends Bundle {
-  val requestor = UInt(log2Ceil(c.ReadClients).W)
+  val requestor = UInt(log2Ceil(c.IntReadClients).W)
   val data = new PageLink(c)
   override def cloneType = new LinkListReadResp(c).asInstanceOf[this.type]
 }
@@ -121,10 +121,17 @@ class RoutingResult(destinations : Int) extends Bundle {
 
 class BufferStatus(c : BufferConfig) extends Bundle {
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
+  val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
 }
 
 class RefCountAdd(val c : BufferConfig) extends Bundle {
   val page = new PageType(c)
   val amount = UInt(log2Ceil(c.MaxReferenceCount).W)
+}
+
+class PacketCounters(val c : BufferConfig) extends Bundle {
+  val incRxCount = UInt(c.WriteClients.W)
+  val incTxCount = UInt(c.ReadClients.W)
+  val incDropCount = Bool()
 }
 

@@ -11,6 +11,7 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
     val error = Output(Bool())
     val expQueueEmpty = Output(Bool())
     val pagesUsed = Output(UInt(log2Ceil(conf.totalPages+1).W))
+    val freePages = Output(Vec(conf.NumPools, UInt(log2Ceil(conf.PagePerPool+1).W)))
   })
   val buffer = Module(new FlatPacketBufferComplex(conf))
   val senders = for (i <- 0 until conf.WriteClients) yield Module(new PacketSender(conf.WordSize, conf.ReadClients, writeDepth))
@@ -40,7 +41,11 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
     emptyBits(i) := receivers(i).io.expQueueEmpty
     receivers(i).io.id := i.U
   }
-  receiverMux.io.c.valid := io.req.valid
+  when (io.req.bits.dst < conf.ReadClients.U) {
+    receiverMux.io.c.valid := io.req.valid
+  }.otherwise {
+    receiverMux.io.c.valid := 0.B
+  }
   receiverMux.io.c.bits := io.req.bits
   receiverMux.io.sel := io.req.bits.dst
 
@@ -57,5 +62,6 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
   }.otherwise {
     statusCount := statusCount + 1.U
   }
+  io.freePages := buffer.io.status.freePages
 }
 

@@ -60,14 +60,18 @@ class TestMemQueue extends FlatSpec with ChiselScalatestTester with Matchers{
         c.io.deq.initSink().setSinkClock(c.clock)
 
         for (j <- 0 to 10) {
+          c.io.usage.expect(0.U)
           c.io.enq.ready.expect(1.B)
           for (i <- 0 until depth) {
             c.io.enq.enqueue(i.U)
+            c.io.usage.expect((i+1).U)
           }
           c.io.enq.ready.expect(0.B)
+          c.io.usage.expect(depth.U)
 
           for (i <- 0 until depth) {
             c.io.deq.expectDequeue(i.U)
+            c.io.usage.expect((depth-(i+1)).U)
           }
           c.io.deq.valid.expect(0.B)
         }

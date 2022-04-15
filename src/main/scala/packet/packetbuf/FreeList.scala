@@ -6,14 +6,13 @@ import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 import packet.generic.MemQueue
 
-class FreeListIO(c : BufferConfig) extends Bundle {
+class FreeListIO(val c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
   val freeRequestOut = Vec(c.WriteClients, Decoupled(new PageResp(c)))
   val freeReturnIn = Vec(c.IntReadClients, Flipped(Decoupled(new PageType(c))))
   val refCountAdd = if (c.MaxReferenceCount > 1) Some(Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))) else None
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
-  override def cloneType =
-    new FreeListIO(c).asInstanceOf[this.type]
+  val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
 }
 
 class FreeList(c : BufferConfig) extends Module {
@@ -142,6 +141,11 @@ class FreeList(c : BufferConfig) extends Module {
       pagesPerPort(sourcePage(retMuxOut.bits.asAddr())) := pagesPerPort(sourcePage(retMuxOut.bits.asAddr())) - 1.U
     }
   }
+
+  for (i <- 0 until c.NumPools) {
+    io.freePages(i) := listPools(i).io.freePageCount
+  }
+
 }
 
 class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
@@ -150,12 +154,11 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
     val requestIn = Flipped(Decoupled(new PageReq(c)))
     val requestOut = Decoupled(new PageResp(c))
     val returnIn = Flipped(Decoupled(new PageType(c)))
-    //val refCountAdd = if (c.MaxReferenceCount > 1) Some(Flipped(Decoupled(new RefCountAdd(c)))) else None
+    val freePageCount = Output(UInt(log2Ceil(c.PagePerPool+1).W))
   })
   val s_init :: s_run :: Nil = Enum(2)
   val state = RegInit(init = s_init)
   val initCount = RegInit(init=0.U(pageBits.W))
-  //val freeList = Module(new Queue(UInt(pageBits.W), c.PagePerPool).suggestName("FreeListQueue"))
   val freeList = Module(new MemQueue(UInt(pageBits.W), c.PagePerPool, c.mgen2p))
   val requestIn = DCInput(io.requestIn)
   val returnIn = Wire(Flipped(Decoupled(new PageType(c))))
@@ -172,6 +175,7 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
   requestOut.bits.requestor := requestIn.bits.requestor
   requestOut.bits.page.pageNum := freeList.io.deq.bits
   requestOut.bits.page.pool := poolNum.U
+  io.freePageCount := freeList.io.usage
 
   switch (state) {
     is (s_init) {
@@ -198,6 +202,7 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
     freeList.io.deq.ready := true.B
   }
   io.requestOut <> DCOutput(requestOut)
+
 }
 
 class FreeListRefCount(c : BufferConfig) extends Module {

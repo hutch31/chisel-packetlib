@@ -7,6 +7,7 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
   val io = IO(new Bundle {
     val enq = Flipped(new DecoupledIO(data.cloneType))
     val deq = new DecoupledIO(data.cloneType)
+    val usage = Output(UInt(log2Ceil(depth+1).W))
   })
   override def desiredName: String = "MemQueue_" + data.toString + "_D" + depth.toString
 
@@ -42,7 +43,13 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
 
   when (!full) {
     full := (wrptr_p1 === rdptr) && (nxt_wrptr === nxt_rdptr)
+    when (wrptr >= rdptr) {
+      io.usage := wrptr - rdptr
+    }.otherwise {
+      io.usage := wrptr +& depth.U - rdptr
+    }
   }.otherwise {
+    io.usage := depth.U
     full := !io.deq.fire()
   }
 
