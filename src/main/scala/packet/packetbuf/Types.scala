@@ -119,7 +119,7 @@ class RoutingResult(destinations : Int) extends Bundle {
   override def cloneType = new RoutingResult(destinations).asInstanceOf[this.type]
 }
 
-class BufferStatus(c : BufferConfig) extends Bundle {
+class BufferStatus(val c : BufferConfig) extends Bundle {
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
 }
