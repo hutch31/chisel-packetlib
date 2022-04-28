@@ -14,7 +14,7 @@ class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester{
     val writeClients = 4
     val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=1, MaxReferenceCount = 4)
 
-    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
       c => {
         var pid : Int = 1
 

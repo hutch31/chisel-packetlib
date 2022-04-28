@@ -86,5 +86,5 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
 
   // connect buffer status signals
   io.status.pagesPerPort := freeList.io.pagesPerPort
-
+  io.status.freePages := freeList.io.freePages
 }

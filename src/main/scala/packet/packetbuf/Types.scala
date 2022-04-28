@@ -13,27 +13,27 @@ class PageType(val c : BufferConfig) extends Bundle {
   def asAddr() : UInt = { constantMult(pool, c.PagePerPool) +& pageNum }
 }
 
-class PageLink(val c : BufferConfig) extends Bundle {
+class PageLink(c : BufferConfig) extends Bundle {
   val nextPage = new PageType(c)
   val nextPageValid = Bool()
 }
 
-class LinkListWriteReq(val c : BufferConfig) extends Bundle {
+class LinkListWriteReq(c : BufferConfig) extends Bundle {
   val addr = new PageType(c)
   val data = new PageLink(c)
 }
 
-class LinkListReadReq(val c : BufferConfig) extends Bundle {
-  val requestor = UInt(log2Ceil(c.ReadClients).W)
+class LinkListReadReq(c : BufferConfig) extends Bundle {
+  val requestor = UInt(log2Ceil(c.IntReadClients).W)
   val addr = new PageType(c)
 }
 
-class LinkListReadResp(val c : BufferConfig) extends Bundle {
-  val requestor = UInt(log2Ceil(c.ReadClients).W)
+class LinkListReadResp(c : BufferConfig) extends Bundle {
+  val requestor = UInt(log2Ceil(c.IntReadClients).W)
   val data = new PageLink(c)
 }
 
-class BufferWriteReq(val c : BufferConfig) extends Bundle {
+class BufferWriteReq(c : BufferConfig) extends Bundle {
   val slotValid = Bool()
   val slot = UInt(log2Ceil(c.WriteClients).W)
   val page = new PageType(c)
@@ -46,18 +46,18 @@ class PageReq(val c : BufferConfig) extends Bundle {
   val pool = if (c.NumPools > 1) Some(UInt(log2Ceil(c.NumPools).W)) else None
 }
 
-class PageResp(val c : BufferConfig) extends Bundle {
+class PageResp(c : BufferConfig) extends Bundle {
   val requestor = UInt(log2Ceil(c.WriteClients).W)
   val page = new PageType(c)
 }
 
-class BufferReadReq(val c : BufferConfig) extends Bundle {
+class BufferReadReq(c : BufferConfig) extends Bundle {
   val requestor = UInt(log2Ceil(c.ReadClients).W)
   val page = new PageType(c)
   val line = UInt(log2Ceil(c.LinesPerPage).W)
 }
 
-class BufferReadResp(val c : BufferConfig) extends Bundle {
+class BufferReadResp(c : BufferConfig) extends Bundle {
   val req = new BufferReadReq(c)
   val data = Vec(c.WordSize, UInt(8.W))
 }
@@ -74,7 +74,7 @@ class PacketWriterInterface(val c: BufferConfig) extends Bundle {
   val refCountAdd = if (c.MaxReferenceCount > 1) Some(Decoupled(new RefCountAdd(c))) else None
 }
 
-class PacketReaderInterface(val c: BufferConfig) extends Bundle {
+class PacketReaderInterface(c: BufferConfig) extends Bundle {
   // Interface to link list for requesting pages
   val linkListReadReq = new CreditIO(new LinkListReadReq(c))
   val linkListReadResp = Flipped(new CreditIO(new LinkListReadResp(c)))
@@ -105,10 +105,17 @@ class RoutingResult(val destinations : Int) extends Bundle {
 
 class BufferStatus(c : BufferConfig) extends Bundle {
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
+  val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
 }
 
 class RefCountAdd(val c : BufferConfig) extends Bundle {
   val page = new PageType(c)
   val amount = UInt(log2Ceil(c.MaxReferenceCount).W)
+}
+
+class PacketCounters(val c : BufferConfig) extends Bundle {
+  val incRxCount = UInt(c.WriteClients.W)
+  val incTxCount = UInt(c.ReadClients.W)
+  val incDropCount = Bool()
 }
 
