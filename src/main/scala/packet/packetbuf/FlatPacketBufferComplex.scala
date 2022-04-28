@@ -39,6 +39,12 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     readers(i).io.bufferReadResp := buffer.io.readRespOut
   }
 
+  if (c.HasDropPort) {
+    val dropper = Module(new PacketDropper(c))
+    dropper.io.interface <> buffer.io.dropInterface.get
+    dropper.io.schedIn <> scheduler.io.dropOut.get
+  }
+
   io.status <> buffer.io.status
 }
 
@@ -47,15 +53,36 @@ class DirectScheduler(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
     val schedIn = Vec(c.WriteClients, Flipped(new CreditIO(new SchedulerReq(c))))
     val schedOut = Vec(c.ReadClients, new CreditIO(new SchedulerReq(c)))
+    val dropOut = if (c.HasDropPort) Some(new CreditIO(new SchedulerReq(c))) else None
   })
   val credRx = for (i <- 0 until c.WriteClients) yield Module(new DCCreditReceiver(new SchedulerReq(c), c.credit))
   val credTx = for (i <- 0 until c.ReadClients) yield Module(new DCCreditSender(new SchedulerReq(c), c.credit))
   var xbar = Module(new DcMcCrossbar(new SchedulerReq(c), inputs=c.WriteClients, outputs=c.ReadClients))
+  val dropMux = if (c.HasDropPort) Some(Module(new DCArbiter(new SchedulerReq(c), c.WriteClients, false))) else None
 
   for (i <- 0 until c.WriteClients) {
     io.schedIn(i) <> credRx(i).io.enq
     credRx(i).io.deq <> xbar.io.c(i)
     xbar.io.sel(i) := credRx(i).io.deq.bits.dest
+
+    // If we have a drop port, when the destination bits are all zero, do not send to the crossbar, but instead send into
+    // the drop port.  Take away the valid/ready for the crossbar when we do this based on the dest bits.
+    if (c.HasDropPort) {
+      dropMux.get.io.c(i).bits := credRx(i).io.deq.bits
+      when (credRx(i).io.deq.bits.dest === 0.U) {
+        xbar.io.c(i).valid := 0.B
+        dropMux.get.io.c(i).valid := credRx(i).io.deq.valid
+        credRx(i).io.deq.ready := dropMux.get.io.c(i).ready
+      }.otherwise {
+        dropMux.get.io.c(i).valid := 0.B
+      }
+    }
+  }
+
+  if (c.HasDropPort) {
+    val dropSender = Module(new DCCreditSender(new SchedulerReq(c), 1))
+    dropSender.io.enq <> dropMux.get.io.p
+    io.dropOut.get <> dropSender.io.deq
   }
 
   for (i <- 0 until c.ReadClients) {

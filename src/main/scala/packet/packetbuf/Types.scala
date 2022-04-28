@@ -84,7 +84,14 @@ class PacketReaderInterface(val c: BufferConfig) extends Bundle {
   val bufferReadReq = new CreditIO(new BufferReadReq(c))
 }
 
-class SchedulerReq(val c : BufferConfig) extends Bundle {
+class PacketDropInterface(c : BufferConfig) extends Bundle {
+  val linkListReadReq = new CreditIO(new LinkListReadReq(c))
+  val linkListReadResp = Flipped(new CreditIO(new LinkListReadResp(c)))
+  // Interface to free list for returning pages
+  val freeListReturn = new CreditIO(new PageType(c))
+}
+
+class SchedulerReq(c : BufferConfig) extends Bundle {
   val dest = UInt(c.ReadClients.W)
   val length = UInt(log2Ceil(c.MTU).W)
   val startPage = new PageType(c)

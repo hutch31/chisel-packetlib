@@ -8,14 +8,14 @@ import chisel3.util._
 class LinkList(c : BufferConfig) extends Module {
   val io = IO(new Bundle {
     val writeReq = Vec(c.WriteClients, Flipped(Decoupled(new LinkListWriteReq(c))))
-    val readReq = Vec(c.ReadClients, Flipped(Decoupled(new LinkListReadReq(c))))
-    val readResp = Vec(c.ReadClients, Decoupled(new LinkListReadResp(c)))
+    val readReq = Vec(c.IntReadClients, Flipped(Decoupled(new LinkListReadReq(c))))
+    val readResp = Vec(c.IntReadClients, Decoupled(new LinkListReadResp(c)))
   })
   if (c.NumPools == 1) {
     val lpool = Module(new LinkListPool(c))
     val writeReqArb = Module(new DCArbiter(new LinkListWriteReq(c), c.WriteClients, false))
-    val readReqArb = Module(new DCArbiter(new LinkListReadReq(c), c.ReadClients, false))
-    val readDemux = Module(new DCDemux(new LinkListReadResp(c), c.ReadClients))
+    val readReqArb = Module(new DCArbiter(new LinkListReadReq(c), c.IntReadClients, false))
+    val readDemux = Module(new DCDemux(new LinkListReadResp(c), c.IntReadClients))
 
     writeReqArb.io.c <> io.writeReq
     writeReqArb.io.p <> lpool.io.writeReq
@@ -26,8 +26,8 @@ class LinkList(c : BufferConfig) extends Module {
     io.readResp <> readDemux.io.p
   } else {
     val writeXbar = Module(new DCCrossbar(new LinkListWriteReq(c), inputs = c.WriteClients, outputs = c.NumPools))
-    val readReqXbar = Module(new DCCrossbar(new LinkListReadReq(c), inputs = c.ReadClients, outputs = c.NumPools))
-    val readRespXbar = Module(new DCCrossbar(new LinkListReadResp(c), inputs = c.NumPools, outputs = c.ReadClients))
+    val readReqXbar = Module(new DCCrossbar(new LinkListReadReq(c), inputs = c.IntReadClients, outputs = c.NumPools))
+    val readRespXbar = Module(new DCCrossbar(new LinkListReadResp(c), inputs = c.NumPools, outputs = c.IntReadClients))
     val lpool = for (i <- 0 until c.NumPools) yield Module(new LinkListPool(c))
 
     io.writeReq <> writeXbar.io.c
@@ -35,7 +35,7 @@ class LinkList(c : BufferConfig) extends Module {
       writeXbar.io.sel(i) := io.writeReq(i).bits.addr.pool
     }
     io.readReq <> readReqXbar.io.c
-    for (i <- 0 until c.ReadClients) {
+    for (i <- 0 until c.IntReadClients) {
       readReqXbar.io.sel(i) := io.readReq(i).bits.addr.pool
     }
     readRespXbar.io.p <> io.readResp

@@ -61,7 +61,8 @@ public class GeneratorMain {
 				2,
 				true,
 				1,
-				1);
+				1,
+				true);
 
         ChiselStage stage = new ChiselStage();
         String[] buildArgs = {"--target-dir", "generated"};

@@ -18,7 +18,8 @@ case class BufferConfig
  PacketBufferReadLatency : Int = 1,
  // When set to more than 1, implements a reference count inside FreeList, so that packets are not freed until
  // the reference count returns to zero.
- MaxReferenceCount : Int = 1
+ MaxReferenceCount : Int = 1,
+ HasDropPort : Boolean = true
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit
@@ -28,4 +29,5 @@ case class BufferConfig
   val bytesPerPage = WordSize * LinesPerPage
   val maxPagePerPacket = MTU / bytesPerPage + 1
   val totalPages = NumPools * PagePerPool
+  val IntReadClients = if (HasDropPort) ReadClients+1 else ReadClients
 }
