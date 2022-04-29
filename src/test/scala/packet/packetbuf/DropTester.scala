@@ -2,12 +2,10 @@ package packet.packetbuf
 
 import chisel3._
 import chiseltest._
-import chiseltest.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
-import chiseltest.internal.{VerilatorBackendAnnotation, WriteVcdAnnotation}
 import org.scalatest._
 import packet.generic.{Memgen1R1W, Memgen1RW, VerilogMemgen1RW}
 
-class DropTester extends FlatSpec with ChiselScalatestTester with Matchers {
+class DropTester extends FlatSpec with ChiselScalatestTester {
   it should "drop packets" in {
     val readClients = 4
     val writeClients = 4

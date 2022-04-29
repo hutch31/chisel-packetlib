@@ -211,7 +211,7 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
     freePageReqCount := freePageReqCount - 1.U
   }
 
-  freeReqSender.io.enq.valid := (freePageReqCount + freeRespRx.io.fifoCount) < c.freeListReqCredit.U
+  freeReqSender.io.enq.valid := (freePageReqCount +& freeRespRx.io.fifoCount) < c.freeListReqCredit.U
   freeReqSender.io.enq.bits.requestor := io.id
   if (c.NumPools > 1) {
     // when more than one pool is in use, simply rotate requests between pools to statistically share load

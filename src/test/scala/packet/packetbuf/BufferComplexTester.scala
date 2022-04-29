@@ -2,13 +2,12 @@ package packet.packetbuf
 
 import chisel.lib.dclib.DCDemux
 import chisel3._
-import chisel3.tester._
-import chiseltest.{ChiselScalatestTester, WriteVcdAnnotation}
+import chiseltest._
 import org.scalatest.freespec.AnyFreeSpec
 import packet.generic.{Memgen1R1W, Memgen1RW}
 import packet._
 
-class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester{
+class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester {
    "send a packet" in {
     val readClients = 4
     val writeClients = 4
@@ -84,7 +83,7 @@ class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester{
       val cycles = 50 + readClients * writeClients * 10
       val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 16, 4, 4, readClients, writeClients, MTU=2048, credit=1)
 
-      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
         c => {
           var pid : Int = 1
 

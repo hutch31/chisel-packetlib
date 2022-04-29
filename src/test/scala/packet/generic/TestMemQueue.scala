@@ -3,14 +3,12 @@ package packet.generic
 import chisel3._
 import chisel3.util._
 import chiseltest._
-import chiseltest.experimental.TestOptionBuilder.ChiselScalatestOptionBuilder
-import chiseltest.internal.WriteVcdAnnotation
+import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.{FlatSpec, Matchers}
 
-class TestMemQueue extends FlatSpec with ChiselScalatestTester with Matchers{
-  behavior of "Testers2 with Queue"
+class TestMemQueue extends AnyFreeSpec with ChiselScalatestTester {
 
-  it should "read and write" in {
+  "read and write" in {
     for (depth <- Seq(8, 9, 16, 17, 127, 128, 129)) {
       test(new MemQueue(UInt(16.W), 17, new Memgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation)) {
         c => {
@@ -50,7 +48,7 @@ class TestMemQueue extends FlatSpec with ChiselScalatestTester with Matchers{
     }
   }
 
-  it should "stop when full" in {
+  "stop when full" in {
     val depth = 5
     test(new MemQueue(UInt(16.W), depth, new Memgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
