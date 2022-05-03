@@ -50,7 +50,7 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
     }
   }.otherwise {
     io.usage := depth.U
-    full := !io.deq.fire()
+    full := !io.deq.fire
   }
 
   io.enq.ready := !full
@@ -59,7 +59,7 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
     nxt_wrptr := wrptr_p1
   }
 
-  when (io.deq.fire()) {
+  when (io.deq.fire) {
     nxt_rdptr := rdptr_p1
   }
   rdptr := nxt_rdptr
