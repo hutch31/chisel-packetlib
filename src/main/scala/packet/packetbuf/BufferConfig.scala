@@ -30,4 +30,5 @@ case class BufferConfig
   val maxPagePerPacket = MTU / bytesPerPage + 1
   val totalPages = NumPools * PagePerPool
   val IntReadClients = if (HasDropPort) ReadClients+1 else ReadClients
+  val readerSchedCredit = 1
 }

@@ -31,7 +31,7 @@ class PacketReader(val c : BufferConfig) extends Module {
   val linkListRx = Module(new DCCreditReceiver(new LinkListReadResp(c), c.linkReadCredit))
   val freeListTx = Module(new DCCreditSender(new PageType(c), c.linkReadCredit))
   val bufferReadTx = Module(new DCCreditSender(new BufferReadReq(c), c.linkReadCredit))
-  val schedRx = Module(new DCCreditReceiver(new SchedulerReq(c), 1))
+  val schedRx = Module(new DCCreditReceiver(new SchedulerReq(c), c.readerSchedCredit))
   val txq = Module(new Queue(new PacketData(c.WordSize), c.ReadWordBuffer).suggestName("ReaderTransmitQueue"))
   val metaQueue = Module(new Queue(new WordMetadata(c), c.ReadWordBuffer).suggestName("ReaderMetaQueue"))
   val txRequestCount = RegInit(init=0.U(log2Ceil(c.ReadWordBuffer+1).W))

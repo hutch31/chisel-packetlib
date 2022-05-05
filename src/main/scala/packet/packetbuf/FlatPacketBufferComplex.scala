@@ -66,7 +66,7 @@ class DirectScheduler(c : BufferConfig) extends Module {
     val dropOut = if (c.HasDropPort) Some(new CreditIO(new SchedulerReq(c))) else None
   })
   val credRx = for (i <- 0 until c.WriteClients) yield Module(new DCCreditReceiver(new SchedulerReq(c), c.credit))
-  val credTx = for (i <- 0 until c.ReadClients) yield Module(new DCCreditSender(new SchedulerReq(c), c.credit))
+  val credTx = for (i <- 0 until c.ReadClients) yield Module(new DCCreditSender(new SchedulerReq(c), c.readerSchedCredit))
   var xbar = Module(new DcMcCrossbar(new SchedulerReq(c), inputs=c.WriteClients, outputs=c.ReadClients))
   val dropMux = if (c.HasDropPort) Some(Module(new DCArbiter(new SchedulerReq(c), c.WriteClients, false))) else None
 
