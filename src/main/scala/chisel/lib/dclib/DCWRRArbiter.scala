@@ -28,7 +28,7 @@ class DCWRRArbiter[D <: Data](data: D, inputs: Int, weightSz : Int) extends Modu
   io.p.ready := wrrmux.io.p_drdy
 }
 
-class sd_wrrmux2(width : Int, weight_sz : Int) extends BlackBox(Map(width -> "width", weight_sz -> "weight_sz")) with HasBlackBoxInline{
+class sd_wrrmux2(width : Int, weight_sz : Int) extends BlackBox(Map("width" -> width, "weight_sz" -> weight_sz)) with HasBlackBoxInline{
   val io = IO(new Bundle {
     val clk = Input(Clock())
     val reset = Input(Reset())

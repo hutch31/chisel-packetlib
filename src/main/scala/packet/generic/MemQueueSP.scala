@@ -22,10 +22,10 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW) extends Modul
   val full = RegInit(0.B)
   val wr_addr = wrptr(asz-1,0)
   val rd_addr = nxt_rdptr(asz-1,0)
-  val wr_en = io.enq.valid & !full
   val nxt_valid = wrptr =/= nxt_rdptr
   val deq_valid = RegNext(next=nxt_valid, init=0.B)
   val rd_en = nxt_valid & !(deq_valid & !io.deq.ready)
+  val wr_en = io.enq.valid & !full & !rd_en
 
   def sat_add(ptr : UInt) : UInt = {
     val plus1 = Wire(UInt(ptr.getWidth.W))
@@ -54,7 +54,7 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW) extends Modul
 
   io.enq.ready := !full & !rd_en
 
-  when (io.enq.valid & !full) {
+  when (wr_en) {
     nxt_wrptr := wrptr_p1
   }
 
