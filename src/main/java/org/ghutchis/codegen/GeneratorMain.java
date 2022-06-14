@@ -17,6 +17,9 @@ import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 import packet.generic.Memgen1R1W;
 import packet.generic.Memgen1RW;
 import packet.packetbuf.*;
+import scala.collection.JavaConverters;
+import scala.collection.immutable.Nil;
+import scala.jdk.CollectionConverters;
 
 public class GeneratorMain {
 	public static Namespace parseArgs(String[] args) {
@@ -58,15 +61,18 @@ public class GeneratorMain {
                 device.BufferConfig.WriteClients,
                 device.BufferConfig.MTU,
                 device.BufferConfig.credit,
-				2,
-				true,
-				1,
-				1,
-				true);
+				device.BufferConfig.ReadWordBuffer,
+				device.BufferConfig.PacketBuffer2Port,
+				device.BufferConfig.PacketBufferReadLatency,
+				device.BufferConfig.MaxReferenceCount,
+				device.BufferConfig.HasDropPort,
+				null
+		);
 
         ChiselStage stage = new ChiselStage();
         String[] buildArgs = {"--target-dir", "generated"};
 
 		stage.emitVerilog(() -> { return new FlatPacketBufferComplex(bconf); } , buildArgs, stage.emitVerilog$default$3());
+
     }
 }

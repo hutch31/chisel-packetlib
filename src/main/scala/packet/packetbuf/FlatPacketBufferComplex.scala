@@ -27,13 +27,13 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     writers(i).io.destIn <> io.destIn(i)
     writers(i).io.schedOut <> scheduler.io.schedIn(i)
     if (i == c.WriteClients-1) {
-      writers(i).io.writeReqIn := buffer.io.writeReqOut
+      writers(c.WritePortSeq(i)).io.writeReqIn := buffer.io.writeReqOut
     } else {
-      writers(i).io.writeReqIn := writers(i+1).io.writeReqOut
+      writers(c.WritePortSeq(i)).io.writeReqIn := writers(c.WritePortSeq(i+1)).io.writeReqOut
     }
     writePktInc(i) := writers(i).io.schedOut.valid
   }
-  buffer.io.writeReqIn := writers(0).io.writeReqOut
+  buffer.io.writeReqIn := writers(c.WritePortSeq(0)).io.writeReqOut
 
   for (i <- 0 until c.ReadClients) {
     readers(i).io.id := i.U

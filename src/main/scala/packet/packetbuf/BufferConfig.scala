@@ -19,7 +19,8 @@ case class BufferConfig
  // When set to more than 1, implements a reference count inside FreeList, so that packets are not freed until
  // the reference count returns to zero.
  MaxReferenceCount : Int = 1,
- HasDropPort : Boolean = true
+ HasDropPort : Boolean = true,
+ WritePortOrder : Seq[Int] = Nil
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit
@@ -31,4 +32,10 @@ case class BufferConfig
   val totalPages = NumPools * PagePerPool
   val IntReadClients = if (HasDropPort) ReadClients+1 else ReadClients
   val readerSchedCredit = 1
+
+  // The BufferComplex creates read and write rings by default in port order, but if WritePortOrder
+  // is specified, then the user can choose a different sequence for stitching the ring, which can help layout
+  // WritePortSeq is ordered from the packet buffer outwards, so element 0 is the writer that writes directly to the
+  // buffer, element 1 sends to element 0, etc.
+  val WritePortSeq = if (WritePortOrder == Nil) for (i <- 0 until WriteClients) yield i else WritePortOrder
 }
