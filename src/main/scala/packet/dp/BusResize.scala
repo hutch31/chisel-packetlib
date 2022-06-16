@@ -29,9 +29,10 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
   val wordsStored = RegInit(init=0.U(log2Ceil(maxWords + 1).W))
   val lastWordEop = Wire(Bool())
   val fullCondition = Wire(Bool())
-  val byteCount = Reg(UInt(log2Ceil(outWidth).W))
+  val byteCount = RegInit(init=0.U(log2Ceil(outWidth).W))
 
   lastWordEop := (wordsStored =/= 0.U) && accum(wordsStored-1.U).code.isEop()
+  val byteAddAmount = Mux(io.in.bits.code.isEop(), io.in.bits.count, inWidth.U)
   fullCondition := lastWordEop || (wordsStored === maxWords.U)
 
   // Need an indication when we are simultaneously shifting data from from the accumulator into
@@ -55,27 +56,24 @@ class BusUpsize(inWidth : Int, outWidth : Int) extends Module {
   }
 
   // When last word is an EOP, use the running byte count plus last word count
-  when (lastWordEop) {
-    io.out.bits.count := accum(wordsStored-1).count + byteCount
-  }.otherwise {
-    io.out.bits.count := (inWidth-1).U + byteCount
-  }
+  io.out.bits.count := Mux(lastWordEop, byteCount, 0.U)
 
   io.out.valid := false.B
 
   when (fullCondition) {
     io.out.valid := true.B
-    byteCount := 0.U
     when (shiftCondition) {
       wordsStored := 1.U
       accum(0) := io.in.bits
+      byteCount := byteAddAmount
     }.elsewhen (io.out.ready) {
+      byteCount := 0.U
       wordsStored := 0.U
     }
   }.elsewhen (!fullCondition && io.in.valid) {
     accum(wordsStored) := io.in.bits
     wordsStored := wordsStored + 1.U
-    byteCount := byteCount + inWidth.U
+    byteCount := byteCount + byteAddAmount
   }
 }
 

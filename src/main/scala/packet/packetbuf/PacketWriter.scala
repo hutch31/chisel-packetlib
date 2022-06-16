@@ -11,6 +11,7 @@ class PacketLineInfo(val c : BufferConfig) extends Bundle {
   val data = Vec(c.WordSize, UInt(8.W))
   val page = new PageType(c)
   val line = UInt(log2Ceil(c.LinesPerPage).W)
+  val lastWord = Bool() // track if this is the last word of a packet
 }
 
 /**
@@ -51,6 +52,7 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
   val state = RegInit(init=s_idle)
   val currentPage = Reg(new PageType(c))
   val schedOutHold = Reg(new SchedulerReq(c))
+  val lastWordWritten = RegInit(init=0.B)
 
   // connect incoming data to buffer, send out a slot request for each data line
   io.portDataIn.ready := false.B
@@ -65,6 +67,7 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
   lineInfoHold.io.enq.bits.page := currentPage
   lineInfoHold.io.enq.bits.line := pageCount
   lineInfoHold.io.enq.bits.data := io.portDataIn.bits.data
+  lineInfoHold.io.enq.bits.lastWord := io.portDataIn.bits.code.isEop()
 
   linkWriteSend.io.enq.valid := false.B
   linkWriteSend.io.enq.bits.addr := currentPage
@@ -116,23 +119,12 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
           schedOutHold.dest := dest.io.deq.bits.dest
           linkWriteSend.io.enq.bits.data.nextPageValid := false.B
           linkWriteSend.io.enq.valid := true.B
+
           if (c.MaxReferenceCount > 1) {
             io.interface.refCountAdd.get.valid := multicast
           }
-
-          // last state optimization -- if scheduler has credit available, then dispatch immediately
-          // otherwise store info and jump to sched state to wait
-
-          when (schedOutSend.io.enq.ready) {
-            schedOutSend.io.enq.valid := true.B
-            dest.io.deq.ready := true.B
-            // need to change these two items from schedOutHold defaults for single-cycle lookahead
-            schedOutSend.io.enq.bits.dest := dest.io.deq.bits.dest
-            schedOutSend.io.enq.bits.length := schedOutHold.length + io.portDataIn.bits.count + 1.U
-            state := s_idle
-          }.otherwise {
-            state := s_sched
-          }
+          // Go to scheduler wait state and block until all writes are dispatched
+          state := s_sched
         }.otherwise {
           schedOutHold.length := schedOutHold.length + c.WordSize.U
 
@@ -153,12 +145,13 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
       }
     }
 
-    // wait state for when scheduler is not ready
+    // wait until last word has been written to the packet buffer to dispatch the descriptor
     is (s_sched) {
-      when (schedOutSend.io.enq.ready) {
+      when (schedOutSend.io.enq.ready & lastWordWritten) {
         dest.io.deq.ready := true.B
         schedOutSend.io.enq.valid := true.B
         state := s_idle
+        lastWordWritten := false.B
       }
     }
   }
@@ -168,8 +161,9 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
   io.writeReqOut.valid := interfaceOutValid
   io.writeReqOut.bits := interfaceOutReg
   lineInfoHold.io.deq.ready := false.B
+  val insertDataOnBus = lineInfoHold.io.deq.valid && !io.writeReqIn.valid && io.writeReqIn.bits.slotValid && io.writeReqIn.bits.slot === io.id
 
-  when (lineInfoHold.io.deq.valid && !io.writeReqIn.valid && io.writeReqIn.bits.slotValid && io.writeReqIn.bits.slot === io.id) {
+  when (insertDataOnBus) {
     printf("Writer %d wr page=%d/%d line=%d data=%x\n", io.id, lineInfoHold.io.deq.bits.page.pool, lineInfoHold.io.deq.bits.page.pageNum, lineInfoHold.io.deq.bits.line, lineInfoHold.io.deq.bits.data.asUInt())
     interfaceOutValid := true.B
     lineInfoHold.io.deq.ready := true.B
@@ -177,6 +171,9 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
     interfaceOutReg.data := lineInfoHold.io.deq.bits.data
     interfaceOutReg.line := lineInfoHold.io.deq.bits.line
     interfaceOutReg.page := lineInfoHold.io.deq.bits.page
+    when (lineInfoHold.io.deq.bits.lastWord) {
+      lastWordWritten := true.B
+    }
   }.otherwise {
     // if not for us, simply forward data around the ring
     interfaceOutValid := io.writeReqIn.valid

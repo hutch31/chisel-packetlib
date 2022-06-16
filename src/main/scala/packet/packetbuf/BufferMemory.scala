@@ -51,7 +51,10 @@ class BufferMemory(val c : BufferConfig) extends Module {
   if (c.PacketBuffer2Port) {
     wrScheduler.io.slotReqMask := Fill(c.WriteClients, 1.U)
   } else {
-    val odd = RegInit(init=false.B)
+    // Suppress writes on odd cycles so that read and write requests never happen on the same cycle
+    // Start in odd or even state based on number of write clients, which dictates how long the write
+    // ring is
+    val odd = RegInit(init=(c.WriteClients % 2).B)
     odd := ~odd
     wrScheduler.io.slotReqMask := Fill(c.WriteClients, odd)
   }
