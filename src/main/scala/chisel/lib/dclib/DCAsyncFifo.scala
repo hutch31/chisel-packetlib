@@ -15,8 +15,9 @@ class DCAsyncFifo[D <: Data](data: D, depth : Int, doubleSync : (UInt) => UInt =
   // Async FIFO must be power of two for pointer sync to work correctly
   val asz = log2Ceil(depth)
   require (depth == 1 << asz)
+  override def desiredName: String = "DCAsyncFifo_" + data.toString + "_D" + depth.toString
 
-  val mem = withClockAndReset(io.enq_clock, io.enq_reset) { Reg(Vec(depth, data)) }
+  val mem = withClockAndReset(io.enq_clock, io.enq_reset) { Reg(Vec(depth, data.cloneType)) }
   val wrptr_enq = withClockAndReset(io.enq_clock, io.enq_reset) { RegInit(init=0.U((asz+1).W)) }
   val wrptr_grey_enq = bin2grey(wrptr_enq)
   val wrptr_grey_deq = withClockAndReset(io.deq_clock, io.deq_reset) { doubleSync(wrptr_grey_enq) }
