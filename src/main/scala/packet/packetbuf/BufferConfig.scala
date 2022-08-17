@@ -38,4 +38,11 @@ case class BufferConfig
   // WritePortSeq is ordered from the packet buffer outwards, so element 0 is the writer that writes directly to the
   // buffer, element 1 sends to element 0, etc.
   val WritePortSeq = if (WritePortOrder == Nil) for (i <- 0 until WriteClients) yield i else WritePortOrder
+
+  // Parameter Checking
+  // If MaxReferenceCount is enabled, the max number of references is the same as the number of read clients
+  require ((MaxReferenceCount == 1) || (MaxReferenceCount == ReadClients))
+  require (ReadClients >= 2)
+  require (WriteClients >= 2)
+  require (MTU >= bytesPerPage)
 }

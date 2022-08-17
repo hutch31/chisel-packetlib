@@ -84,11 +84,9 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
   val fsmResourceOk = io.portDataIn.valid & lineInfoHold.io.enq.ready & dest.io.deq.valid & linkWriteSend.io.enq.ready
   val multicast = PopCount(dest.io.deq.bits.dest) =/= 1.U
 
-  if (c.MaxReferenceCount > 1) {
-    io.interface.refCountAdd.get.valid := false.B
-    io.interface.refCountAdd.get.bits.amount := PopCount(dest.io.deq.bits.dest) - 1.U
-    io.interface.refCountAdd.get.bits.page := currentPage
-  }
+  io.interface.refCountAdd.valid := false.B
+  io.interface.refCountAdd.bits.amount := PopCount(dest.io.deq.bits.dest) - 1.U
+  io.interface.refCountAdd.bits.page := currentPage
 
   // state machine to put links into pages
   bufferAllocator.io.freePage.ready := false.B
@@ -121,7 +119,9 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
           linkWriteSend.io.enq.valid := true.B
 
           if (c.MaxReferenceCount > 1) {
-            io.interface.refCountAdd.get.valid := multicast
+            io.interface.refCountAdd.valid := multicast
+          } else {
+            io.interface.refCountAdd.valid := 0.B
           }
           // Go to scheduler wait state and block until all writes are dispatched
           state := s_sched
@@ -133,7 +133,9 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
           when (pageCount === (c.LinesPerPage-1).U) {
             linkWriteSend.io.enq.valid := true.B
             if (c.MaxReferenceCount > 1) {
-              io.interface.refCountAdd.get.valid := multicast
+              io.interface.refCountAdd.valid := multicast
+            } else {
+              io.interface.refCountAdd.valid := 0.B
             }
             currentPage := bufferAllocator.io.freePage.bits
             bufferAllocator.io.freePage.ready := true.B
@@ -213,7 +215,7 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
   if (c.NumPools > 1) {
     // when more than one pool is in use, simply rotate requests between pools to statistically share load
     val curPool = RegInit(init=io.id)
-    freeReqSender.io.enq.bits.pool.get := curPool
+    freeReqSender.io.enq.bits.pool := curPool
     when (freeReqSender.io.enq.valid) {
       when (curPool === (c.NumPools-1).U) {
         curPool := 0.U
@@ -221,5 +223,7 @@ class BasicPacketBufferAllocator(c : BufferConfig) extends Module {
         curPool := curPool + 1.U
       }
     }
+  } else {
+    freeReqSender.io.enq.bits.pool := 0.U
   }
 }

@@ -77,6 +77,7 @@ class behave2p_mem(depth : Int, width : Int, addr_sz : Int) extends BlackBox(Map
     val rd_en = Input(Bool())
     val d_in = Input(UInt(width.W))
     val rd_addr = Input(UInt(addr_sz.W))
+    val wr_addr = Input(UInt(addr_sz.W))
     val d_out = Output(UInt(width.W))
   })
   setInline("behave1p_mem.v",
@@ -107,7 +108,7 @@ class behave2p_mem(depth : Int, width : Int, addr_sz : Int) extends BlackBox(Map
       |    begin
       |      if (wr_en)
       |        begin
-      |          array[wr_addr] <= `SDLIB_DELAY d_in;   // ri lint_check_waive VAR_INDEX_RANGE
+      |          array[wr_addr] <= d_in;   // ri lint_check_waive VAR_INDEX_RANGE
       |        end
       |    end
       |
@@ -117,7 +118,7 @@ class behave2p_mem(depth : Int, width : Int, addr_sz : Int) extends BlackBox(Map
       |        begin
       |          if (rd_en)
       |            begin
-      |              r_addr <= `SDLIB_DELAY rd_addr;
+      |              r_addr <= rd_addr;
       |            end
       |        end // always @ (posedge clk)
       |    end
@@ -131,4 +132,24 @@ class behave2p_mem(depth : Int, width : Int, addr_sz : Int) extends BlackBox(Map
       |endmodule
       |
       |""".stripMargin)
+}
+
+
+class VerilogMemory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Memory1R1W(dtype, words, rlat) {
+  val minst = Module(new behave2p_mem(words, dtype.getWidth, log2Ceil(words)))
+
+  minst.io.wr_clk := clock.asBool
+  minst.io.rd_clk := clock.asBool
+  minst.io.wr_en := io.writeEnable
+  minst.io.rd_en := io.readEnable
+  minst.io.wr_addr := io.writeAddr
+  minst.io.rd_addr := io.readAddr
+  minst.io.d_in := io.writeData.asUInt
+  io.readData := minst.io.d_out.asTypeOf(dtype.cloneType)
+}
+
+class VerilogMemgen1R1W extends Memgen1R1W {
+  override def apply[D <: Data](dtype: D, depth: Int, latency: Int=1) : Memory1R1W[D] = {
+    new VerilogMemory1R1W(dtype, depth, latency)
+  }
 }

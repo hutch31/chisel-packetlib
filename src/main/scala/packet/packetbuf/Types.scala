@@ -7,7 +7,7 @@ import chisel3.util._
 /**
  * Refers to a specific page in the packet memory buffer
  */
-class PageType(val c : BufferConfig) extends Bundle {
+class PageType(c : BufferConfig) extends Bundle {
   val pool = UInt(log2Ceil(c.NumPools).W)
   val pageNum = UInt(log2Ceil(c.PagePerPool).W)
   def asAddr() : UInt = { constantMult(pool, c.PagePerPool) +& pageNum }
@@ -43,7 +43,7 @@ class BufferWriteReq(c : BufferConfig) extends Bundle {
 
 class PageReq(val c : BufferConfig) extends Bundle {
   val requestor = UInt(log2Ceil(c.WriteClients).W)
-  val pool = if (c.NumPools > 1) Some(UInt(log2Ceil(c.NumPools).W)) else None
+  val pool = UInt(log2Ceil(c.NumPools).W)
 }
 
 class PageResp(c : BufferConfig) extends Bundle {
@@ -71,7 +71,7 @@ class PacketWriterInterface(val c: BufferConfig) extends Bundle {
   // Connection to page write ring
   val writeSlotReq = Output(Bool())
   // Connection to Free list reference count
-  val refCountAdd = if (c.MaxReferenceCount > 1) Some(Decoupled(new RefCountAdd(c))) else None
+  val refCountAdd = Decoupled(new RefCountAdd(c))
 }
 
 class PacketReaderInterface(c: BufferConfig) extends Bundle {

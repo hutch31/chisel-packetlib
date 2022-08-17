@@ -10,7 +10,7 @@ class TestMemQueue extends AnyFreeSpec with ChiselScalatestTester {
 
   "read and write" in {
     for (depth <- Seq(8, 9, 16, 17, 127, 128, 129)) {
-      test(new MemQueue(UInt(16.W), 17, new Memgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
+      test(new MemQueue(UInt(16.W), 17, new VerilogMemgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
         c => {
           val rand = new scala.util.Random()
           val cycles = 100
@@ -113,6 +113,23 @@ class TestMemQueue extends AnyFreeSpec with ChiselScalatestTester {
           }
           c.io.deq.valid.expect(0.B)
         }
+      }
+    }
+  }
+
+  "keep asserting valid when full" in {
+    val depth = 4
+    test(new MemQueue(UInt(16.W), depth, new Memgen1R1W())).withAnnotations(Seq(WriteVcdAnnotation)) {
+      c => {
+        c.io.enq.initSource().setSourceClock(c.clock)
+        c.io.deq.initSink().setSinkClock(c.clock)
+
+        val dseq = for (i <- 0 until depth) yield i.U(16.W)
+
+        c.io.enq.enqueueSeq(dseq)
+        c.io.deq.valid.expect(1.B)
+        c.clock.step(4)
+        c.io.deq.valid.expect(1.B)
       }
     }
   }

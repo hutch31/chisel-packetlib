@@ -2,7 +2,7 @@ package packet.axis
 
 import chisel.lib.dclib.DCMirror
 import chisel3._
-import chisel3.util.ValidIO
+import chisel3.util._
 import packet.test.{PacketReceiver, PacketRequest, PacketSender}
 
 class AxisTestbench (width : Int) extends Module {
@@ -24,6 +24,7 @@ class AxisTestbench (width : Int) extends Module {
 
   sender.io.sendPacket <> reqmirror.io.p(0)
   receiver.io.sendPacket <> reqmirror.io.p(1)
+  sender.io.destIn.ready := 1.B
 
   val p2a = Module(new GenPktToAxi(width))
   val a2p = Module(new GenAxiToPkt(width))

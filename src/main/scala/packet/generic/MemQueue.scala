@@ -24,7 +24,7 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W) extends Module
   val wr_addr = wrptr(asz-1,0)
   val rd_addr = nxt_rdptr(asz-1,0)
   val wr_en = io.enq.valid & !full
-  val nxt_valid = wrptr =/= nxt_rdptr
+  val nxt_valid = full || wrptr =/= nxt_rdptr
   val deq_valid = RegNext(next=nxt_valid, init=0.B)
   val rd_en = nxt_valid & !(deq_valid & !io.deq.ready)
 

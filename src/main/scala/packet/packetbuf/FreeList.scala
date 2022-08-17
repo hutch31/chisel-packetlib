@@ -10,7 +10,7 @@ class FreeListIO(c : BufferConfig) extends Bundle {
   val freeRequestIn = Vec(c.WriteClients, Flipped(Decoupled(new PageReq(c))))
   val freeRequestOut = Vec(c.WriteClients, Decoupled(new PageResp(c)))
   val freeReturnIn = Vec(c.IntReadClients, Flipped(Decoupled(new PageType(c))))
-  val refCountAdd = if (c.MaxReferenceCount > 1) Some(Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))) else None
+  val refCountAdd = Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
 }
@@ -35,9 +35,9 @@ class FreeList(val c : BufferConfig) extends Module {
       val refCount = for (i <- 0 until c.NumPools) yield Module(new FreeListRefCount(c)).suggestName("refCount_"+i.toString)
       val refcountXbar = Module(new DCCrossbar(new RefCountAdd(c), inputs = c.WriteClients, outputs = c.NumPools))
 
-      refcountXbar.io.c <> io.refCountAdd.get
+      refcountXbar.io.c <> io.refCountAdd
       for (wc <- 0 until c.WriteClients) {
-        refcountXbar.io.sel(wc) := io.refCountAdd.get(wc).bits.page.pool
+        refcountXbar.io.sel(wc) := io.refCountAdd(wc).bits.page.pool
       }
       for (p <- 0 until c.NumPools) {
         refCount(p).io.refCountAdd <> refcountXbar.io.p(p)
@@ -50,6 +50,9 @@ class FreeList(val c : BufferConfig) extends Module {
         refCount(p).io.requestOut.valid := reqOutXbar.io.c(p).fire
       }
     } else {
+      for (i <- 0 until c.WriteClients)
+        io.refCountAdd(i).ready := 0.B
+
       for (p <- 0 until c.NumPools) {
         retXbarHold(p).io.enq <> retXbar.io.p(p)
       }
@@ -57,7 +60,7 @@ class FreeList(val c : BufferConfig) extends Module {
 
     io.freeRequestIn <> reqInXbar.io.c
     for (wc <- 0 until c.WriteClients) {
-      reqInXbar.io.sel(wc) := io.freeRequestIn(wc).bits.pool.get
+      reqInXbar.io.sel(wc) := io.freeRequestIn(wc).bits.pool
     }
     for (p <- 0 until c.NumPools) {
       val stallThisPort = Wire(Vec(c.NumPools, Bool()))
@@ -113,7 +116,7 @@ class FreeList(val c : BufferConfig) extends Module {
       val refCount = Module(new FreeListRefCount(c)).suggestName("refCount")
       val refcountDemux = Module(new DCArbiter(new RefCountAdd(c),  c.WriteClients, false)).suggestName("refcountDemux")
 
-      refcountDemux.io.c <> io.refCountAdd.get
+      refcountDemux.io.c <> io.refCountAdd
       refCount.io.refCountAdd <> refcountDemux.io.p
 
       refCount.io.returnIn <> retMux.io.p
@@ -123,6 +126,9 @@ class FreeList(val c : BufferConfig) extends Module {
       refCount.io.requestOut.bits := reqOutDemux.io.c.bits
       refCount.io.requestOut.valid := reqOutDemux.io.c.fire
     } else {
+      for (i <- 0 until c.WriteClients)
+        io.refCountAdd(i).ready := 0.B
+
       retMuxOut <> retMux.io.p
     }
 

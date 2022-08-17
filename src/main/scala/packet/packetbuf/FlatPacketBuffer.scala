@@ -31,9 +31,7 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
     io.writerInterface(i).linkListWriteReq <> linkWriteReceiver.io.enq
     linkWriteReceiver.io.deq <> linkList.io.writeReq(i)
     buffer.io.wrSlotReqIn(i) := io.writerInterface(i).writeSlotReq
-    if (c.MaxReferenceCount > 1) {
-      freeList.io.refCountAdd.get(i) <> io.writerInterface(i).refCountAdd.get
-    }
+    freeList.io.refCountAdd(i) <> io.writerInterface(i).refCountAdd
   }
 
   for (i <- 0 until c.ReadClients) {

@@ -24,6 +24,7 @@ class ResizeTestbench(in_width : Int, out_width : Int) extends Module {
   receiver.io.id := 0.U
   sender.io.sendPacket <> reqmirror.io.p(0)
   receiver.io.sendPacket <> reqmirror.io.p(1)
+  sender.io.destIn.ready := true.B
 
   if (out_width > in_width) {
     val upsize = Module(new BusUpsize(inWidth = in_width, outWidth = out_width))

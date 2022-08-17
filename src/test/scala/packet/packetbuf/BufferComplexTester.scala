@@ -46,7 +46,7 @@ class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester {
     val writeClients = 2
     val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = 2)
 
-    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+    test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
       c => {
         // send three 32B packets
         c.io.req.valid.poke(true.B)
@@ -118,7 +118,7 @@ class BufferComplexTester extends AnyFreeSpec with ChiselScalatestTester {
       val conf = new BufferConfig(new Memgen1R1W(), new Memgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU = 2048, credit = 4, ReadWordBuffer=4, PacketBufferReadLatency = memLatency)
 
 
-      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation)) {
+      test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
         c => {
           for (p <- 1 to 5) {
             c.io.req.valid.poke(true.B)
