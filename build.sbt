@@ -14,7 +14,7 @@ lazy val root = (project in file("."))
       "edu.berkeley.cs" %% "chisel3" % chiselVersion,
       "edu.berkeley.cs" %% "chiseltest" % "0.5.1" % "test",
       "net.sourceforge.argparse4j" % "argparse4j" % "0.9.0",
-      "javax.xml.bind" % "jaxb-api" % "2.3.1"
+      "org.scala-lang.modules" %% "scala-xml" % "2.1.0"
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
@@ -26,6 +26,4 @@ lazy val root = (project in file("."))
     addCompilerPlugin("edu.berkeley.cs" % "chisel3-plugin" % chiselVersion cross CrossVersion.full),
   )
 
-Compile / mainClass := Some("GeneratorMain")
-//assembly / mainClass := Some("GeneratorMain")
-//exportJars := true
+Compile / mainClass := Some("generate.Generate")

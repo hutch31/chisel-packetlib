@@ -8,5 +8,7 @@
     <WriteClients>4</WriteClients>
     <MTU>1024</MTU>
     <credit>2</credit>
+    <PacketBuffer2Port>false</PacketBuffer2Port>
+    <HasDropPort>false</HasDropPort>
   </BufferConfig>
 </PacketBufferGeneration>
