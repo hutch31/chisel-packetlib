@@ -12,6 +12,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     val destIn = Vec(c.WriteClients, Flipped(Decoupled(new RoutingResult(c.ReadClients))))
     val status = new BufferStatus(c)
     val pkt_count = Output(new PacketCounters(c))
+    val readerSchedResult = Vec(c.ReadClients, ValidIO(new SchedulerReq(c)))
   })
   val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
   val writers = for (i <- 0 until c.WriteClients) yield Module(new PacketWriter(c))
@@ -42,6 +43,9 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     readers(i).io.schedIn <> scheduler.io.schedOut(i)
     readers(i).io.bufferReadResp := buffer.io.readRespOut
     readPktInc(i) := readers(i).io.schedIn.valid
+
+    io.readerSchedResult(i).bits := scheduler.io.schedOut(i).bits
+    io.readerSchedResult(i).valid := scheduler.io.schedOut(i).valid
   }
 
   if (c.HasDropPort) {
