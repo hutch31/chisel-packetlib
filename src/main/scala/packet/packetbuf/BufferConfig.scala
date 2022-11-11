@@ -20,7 +20,8 @@ case class BufferConfig
  // the reference count returns to zero.
  MaxReferenceCount : Int = 1,
  HasDropPort : Boolean = true,
- WritePortOrder : Seq[Int] = Nil
+ WritePortOrder : Seq[Int] = Nil,
+ MemControl : MemoryControl = new MemoryControl
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit
@@ -32,6 +33,8 @@ case class BufferConfig
   val totalPages = NumPools * PagePerPool
   val IntReadClients = if (HasDropPort) ReadClients+1 else ReadClients
   val readerSchedCredit = 1
+  // Each pool has 1 packet buffer memory, 1 free list memory, and 1 link list memory
+  val totalMemoryCount = 3 * NumPools
 
   // The BufferComplex creates read and write rings by default in port order, but if WritePortOrder
   // is specified, then the user can choose a different sequence for stitching the ring, which can help layout

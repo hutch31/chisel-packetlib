@@ -12,6 +12,7 @@ class BufferMemoryIO(val c : BufferConfig) extends Bundle {
   val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
   val readReqOut = ValidIO(new BufferReadReq(c))
   val readRespOut = ValidIO(new BufferReadResp(c))
+  val memControl = Vec(c.NumPools, c.MemControl)
 }
 
 class BufferMemory(val c : BufferConfig) extends Module {
@@ -36,6 +37,7 @@ class BufferMemory(val c : BufferConfig) extends Module {
 
     memPools(i).io.readReqIn := io.readReqIn
     memPools(i).io.readReqIn.valid := io.readReqIn.valid && (io.readReqIn.bits.page.pool === i.U)
+    memPools(i).io.memControl <> io.memControl(i)
   }
 
   // send reads back from correct pool
@@ -65,6 +67,7 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
     val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
     val readRespOut = ValidIO(new BufferReadResp(c))
+    val memControl = c.MemControl
   })
   if (c.PacketBuffer2Port) {
     val mem = Module(c.mgen2p(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage * c.PagePerPool, latency = c.PacketBufferReadLatency))
@@ -76,6 +79,8 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     io.readRespOut.bits.data := mem.io.readData
     io.readRespOut.bits.req := ShiftRegister(io.readReqIn.bits, c.PacketBufferReadLatency)
     io.readRespOut.valid := ShiftRegister(io.readReqIn.valid, c.PacketBufferReadLatency)
+
+    mem.attachMemory(io.memControl)
   } else {
     val mem = Module(c.mgen1p(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage * c.PagePerPool, latency = c.PacketBufferReadLatency))
     when (io.readReqIn.valid) {
@@ -92,6 +97,7 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     io.readRespOut.bits.data := mem.io.readData
     io.readRespOut.bits.req := ShiftRegister(io.readReqIn.bits, c.PacketBufferReadLatency)
     io.readRespOut.valid := ShiftRegister(io.readReqIn.valid, c.PacketBufferReadLatency)
+    mem.attachMemory(io.memControl)
   }
 }
 

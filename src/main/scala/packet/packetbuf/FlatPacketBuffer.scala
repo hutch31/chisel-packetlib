@@ -13,10 +13,11 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
     val readRespOut = ValidIO(new BufferReadResp(c))
     val status = new BufferStatus(c)
     val dropInterface = if (c.HasDropPort) Some(Flipped(new PacketDropInterface(c))) else None
+    val memControl = Vec(c.totalMemoryCount, c.MemControl.factory)
   })
   val buffer = Module(new BufferMemory(c))
-  val freeList = Module(new FreeList(c))
   val linkList = Module(new LinkList(c))
+  val freeList = Module(new FreeList(c))
   val readReqArbiter = Module(new DCArbiter(new BufferReadReq(c), c.ReadClients, false))
 
   for (i <- 0 until c.WriteClients) {
@@ -85,4 +86,10 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
   // connect buffer status signals
   io.status.pagesPerPort := freeList.io.pagesPerPort
   io.status.freePages := freeList.io.freePages
+
+  for (i <- 0 until c.NumPools) {
+    buffer.io.memControl(i) <> io.memControl(i*3)
+    freeList.io.memControl(i) <> io.memControl(i*3+1)
+    linkList.io.memControl(i) <> io.memControl(i*3+2)
+  }
 }

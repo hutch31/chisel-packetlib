@@ -13,6 +13,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     val status = new BufferStatus(c)
     val pkt_count = Output(new PacketCounters(c))
     val readerSchedResult = Vec(c.ReadClients, ValidIO(new SchedulerReq(c)))
+    val memControl = Vec(c.totalMemoryCount, c.MemControl.factory)
   })
   val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
   val writers = for (i <- 0 until c.WriteClients) yield Module(new PacketWriter(c))
@@ -60,6 +61,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   io.status <> buffer.io.status
   io.pkt_count.incTxCount := Cat(writePktInc.reverse)
   io.pkt_count.incRxCount := Cat(readPktInc.reverse)
+  io.memControl <> buffer.io.memControl
 }
 
 // Basic "scheduler" takes requests from source and sends them to their requested destination

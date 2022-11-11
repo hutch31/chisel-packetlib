@@ -3,11 +3,12 @@ package packet.generic
 import chisel3._
 import chisel3.util._
 
-class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW) extends Module {
+class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW, memCon : MemoryControl) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(new DecoupledIO(data.cloneType))
     val deq = new DecoupledIO(data.cloneType)
     val usage = Output(UInt(log2Ceil(depth+1).W))
+    val memControl = memCon.factory
   })
   override def desiredName: String = "MemQueueSP_" + data.toString + "_D" + depth.toString
 
@@ -26,6 +27,8 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW) extends Modul
   val deq_valid = RegNext(next=nxt_valid, init=0.B)
   val rd_en = nxt_valid & !(deq_valid & !io.deq.ready)
   val wr_en = io.enq.valid & !full & !rd_en
+
+  mem.attachMemory(io.memControl)
 
   def sat_add(ptr : UInt) : UInt = {
     val plus1 = Wire(UInt(ptr.getWidth.W))

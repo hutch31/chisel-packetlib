@@ -10,6 +10,7 @@ class LinkList(c : BufferConfig) extends Module {
     val writeReq = Vec(c.WriteClients, Flipped(Decoupled(new LinkListWriteReq(c))))
     val readReq = Vec(c.IntReadClients, Flipped(Decoupled(new LinkListReadReq(c))))
     val readResp = Vec(c.IntReadClients, Decoupled(new LinkListReadResp(c)))
+    val memControl = Vec(c.NumPools, c.MemControl.factory)
   })
   if (c.NumPools == 1) {
     val lpool = Module(new LinkListPool(c))
@@ -24,6 +25,7 @@ class LinkList(c : BufferConfig) extends Module {
     lpool.io.readResp <> readDemux.io.c
     readDemux.io.sel := lpool.io.readResp.bits.requestor
     io.readResp <> readDemux.io.p
+    io.memControl(0) <> lpool.io.memControl
   } else {
     val writeXbar = Module(new DCCrossbar(new LinkListWriteReq(c), inputs = c.WriteClients, outputs = c.NumPools))
     val readReqXbar = Module(new DCCrossbar(new LinkListReadReq(c), inputs = c.IntReadClients, outputs = c.NumPools))
@@ -44,8 +46,10 @@ class LinkList(c : BufferConfig) extends Module {
       readReqXbar.io.p(i) <> lpool(i).io.readReq
       readRespXbar.io.sel(i) := lpool(i).io.readResp.bits.requestor
       readRespXbar.io.c(i) <> lpool(i).io.readResp
+      io.memControl(i) <> lpool(i).io.memControl
     }
   }
+
 }
 
 class LinkListPool(c : BufferConfig) extends Module {
@@ -53,17 +57,15 @@ class LinkListPool(c : BufferConfig) extends Module {
     val writeReq = Flipped(Decoupled(new LinkListWriteReq(c)))
     val readReq = Flipped(Decoupled(new LinkListReadReq(c)))
     val readResp = Decoupled(new LinkListReadResp(c))
+    val memControl = c.MemControl.factory
   })
-  //val mem = SyncReadMem(c.PagePerPool, new PageLink(c))
   val mem = Module(c.mgen2p.apply(new PageLink(c), c.PagePerPool))
   val s_init :: s_ready :: Nil = Enum(2)
   val state = RegInit(init=s_init)
   val initCount = RegInit(init=0.U(log2Ceil(c.PagePerPool).W))
   val outq = Module(new Queue(new LinkListReadResp(c), 2).suggestName("LinkListOutputQ"))
   val readValid = RegNext(init=false.B, next=io.readReq.valid)
-  //val wrAddr = Wire(UInt(log2Ceil(c.PagePerPool).W))
-  //val rdAddr = Wire(UInt(log2Ceil(c.PagePerPool).W))
-  //val wrData = Wire(new PageLink(c))
+  mem.attachMemory(io.memControl)
 
   io.writeReq.ready := false.B
   io.readReq.ready := outq.io.count < 2.U

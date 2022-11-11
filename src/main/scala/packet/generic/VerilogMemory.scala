@@ -3,7 +3,7 @@ package packet.generic
 import chisel3.util._
 import chisel3._
 
-class VerilogMemory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Memory1RW(dtype, words, rlat) {
+class VerilogMemory1RW[D <: Data, MC <: MemoryControl](dtype: D, words: Int, rlat: Int=1, memCon : MC = new MemoryControl) extends Memory1RW(dtype, words, rlat, memCon) {
   val minst = Module(new behave1p_mem(words, dtype.getWidth, log2Ceil(words)))
 
   minst.io.clk := clock.asBool
@@ -15,8 +15,8 @@ class VerilogMemory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Mem
 }
 
 class VerilogMemgen1RW extends Memgen1RW {
-  override def apply[D <: Data](dtype: D, depth: Int, latency: Int=1) : Memory1RW[D] = {
-    new VerilogMemory1RW(dtype, depth, latency)
+  override def apply[D <: Data](dtype: D, depth: Int, latency: Int=1, memCon : MemoryControl = new MemoryControl) : Memory1RW[D] = {
+    new VerilogMemory1RW(dtype, depth, latency, memCon)
   }
 }
 
@@ -135,7 +135,7 @@ class behave2p_mem(depth : Int, width : Int, addr_sz : Int) extends BlackBox(Map
 }
 
 
-class VerilogMemory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Memory1R1W(dtype, words, rlat) {
+class VerilogMemory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryControl = new MemoryControl) extends Memory1R1W(dtype, words, rlat, memCon) {
   val minst = Module(new behave2p_mem(words, dtype.getWidth, log2Ceil(words)))
 
   minst.io.wr_clk := clock.asBool
@@ -149,7 +149,7 @@ class VerilogMemory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Me
 }
 
 class VerilogMemgen1R1W extends Memgen1R1W {
-  override def apply[D <: Data](dtype: D, depth: Int, latency: Int=1) : Memory1R1W[D] = {
-    new VerilogMemory1R1W(dtype, depth, latency)
+  override def apply[D <: Data](dtype: D, depth: Int, latency: Int=1, memCon : MemoryControl = new MemoryControl) : Memory1R1W[D] = {
+    new VerilogMemory1R1W(dtype, depth, latency, memCon)
   }
 }

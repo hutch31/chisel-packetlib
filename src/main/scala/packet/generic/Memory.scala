@@ -4,6 +4,14 @@ import chisel3._
 import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 
+class MemoryControl extends Bundle {
+  def connectMemory   = {
+
+  }
+
+  def factory : MemoryControl = new MemoryControl
+}
+
 /**
   * Memory1R1W is a memory generator class, which can be extended to create
   * platform-specific memories.  It generates a two-port memory with one read
@@ -12,7 +20,7 @@ import chisel3.util._
   * @param dtype  Data type to wrap
   * @param words  Memory words
   */
-class Memory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
+class Memory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryControl = new MemoryControl) extends Module {
   val hsize = log2Ceil(words)
 
   val io = IO(new Bundle {
@@ -34,6 +42,13 @@ class Memory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
   } else {
     io.readData := ShiftRegister(m.read(io.readAddr, io.readEnable), rlat-1)
   }
+
+  memCon.connectMemory
+
+  // Populate this with code needed to connect parent to this memory
+  def attachMemory(m : MemoryControl) = {
+
+  }
 }
 
 /**
@@ -45,7 +60,7 @@ class Memory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
  * @param words
  * @param rlat
  */
-class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
+class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryControl = new MemoryControl) extends Module {
   val hsize = log2Ceil(words)
 
   val io = IO(new Bundle {
@@ -56,16 +71,9 @@ class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
     val readData = Output(dtype)
   })
 
-  /*
-  val m = Reg(Vec(words, dtype))
-  val raddr = RegEnable(next=io.addr, enable=io.readEnable)
-
-  io.readData := m(raddr)
-  when (io.writeEnable) {
-    m(io.addr) := io.writeData
+  // Populate this with code needed to connect parent to this memory
+  def attachMemory(m : MemoryControl) = {
   }
-
-   */
   val m = SyncReadMem(words, dtype)
 
   io.readData := 0.asTypeOf(dtype.cloneType)
@@ -82,14 +90,14 @@ class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1) extends Module {
 }
 
 class Memgen1RW {
-  def apply[D <: Data](dtype: D, depth: Int, latency: Int=1) : Memory1RW[D] = {
-    new Memory1RW(dtype, depth, latency)
+  def apply[D <: Data](dtype: D, depth: Int, latency: Int=1,  memCon : MemoryControl = new MemoryControl) : Memory1RW[D] = {
+    new Memory1RW(dtype, depth, latency, memCon)
   }
 }
 
 class Memgen1R1W {
-  def apply[D <: Data](dtype: D, depth: Int, latency: Int=1) : Memory1R1W[D] = {
-    new Memory1R1W(dtype, depth, latency)
+  def apply[D <: Data](dtype: D, depth: Int, latency: Int=1, memCon : MemoryControl = new MemoryControl) : Memory1R1W[D] = {
+    new Memory1R1W(dtype, depth, latency, memCon)
   }
 }
 

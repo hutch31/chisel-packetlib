@@ -13,6 +13,7 @@ class FreeListIO(c : BufferConfig) extends Bundle {
   val refCountAdd = Vec(c.WriteClients, Flipped(Decoupled(new RefCountAdd(c))))
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
+  val memControl = Vec(c.NumPools, c.MemControl.factory)
 }
 
 class FreeList(val c : BufferConfig) extends Module {
@@ -150,6 +151,7 @@ class FreeList(val c : BufferConfig) extends Module {
 
   for (i <- 0 until c.NumPools) {
     io.freePages(i) := listPools(i).io.freePageCount
+    io.memControl(i) <> listPools(i).io.memControl
   }
 
 }
@@ -161,16 +163,18 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
     val requestOut = Decoupled(new PageResp(c))
     val returnIn = Flipped(Decoupled(new PageType(c)))
     val freePageCount = Output(UInt(log2Ceil(c.PagePerPool+1).W))
+    val memControl = c.MemControl.factory
   })
   val s_init :: s_run :: Nil = Enum(2)
   val state = RegInit(init = s_init)
   val initCount = RegInit(init=0.U(pageBits.W))
-  val freeList = Module(new MemQueue(UInt(pageBits.W), c.PagePerPool, c.mgen2p))
+  val freeList = Module(new MemQueue(UInt(pageBits.W), c.PagePerPool, c.mgen2p, io.memControl))
   val requestIn = DCInput(io.requestIn)
   val returnIn = Wire(Flipped(Decoupled(new PageType(c))))
   val requestOut = Wire(Decoupled(new PageResp(c)))
 
   returnIn <> DCInput(io.returnIn)
+  freeList.io.memControl <> io.memControl
 
   freeList.io.enq.valid := false.B
   freeList.io.enq.bits := 0.U
