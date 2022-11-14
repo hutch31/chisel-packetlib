@@ -59,7 +59,7 @@ class LinkListPool(c : BufferConfig) extends Module {
     val readResp = Decoupled(new LinkListReadResp(c))
     val memControl = c.MemControl.factory
   })
-  val mem = Module(c.mgen2p.apply(new PageLink(c), c.PagePerPool))
+  val mem = Module(c.mgen2p.apply(new PageLink(c), c.PagePerPool, latency = c.LinkListReadLatency, memCon = c.MemControl))
   val s_init :: s_ready :: Nil = Enum(2)
   val state = RegInit(init=s_init)
   val initCount = RegInit(init=0.U(log2Ceil(c.PagePerPool).W))
