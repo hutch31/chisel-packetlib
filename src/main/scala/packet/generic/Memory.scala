@@ -22,6 +22,7 @@ class MemoryControl extends Bundle {
   */
 class Memory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryControl = new MemoryControl) extends Module {
   val hsize = log2Ceil(words)
+  val hard_inst = false
 
   val io = IO(new Bundle {
     val readAddr = Input(UInt(hsize.W))
@@ -62,6 +63,7 @@ class Memory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryCo
  */
 class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryControl = new MemoryControl) extends Module {
   val hsize = log2Ceil(words)
+  val hard_inst = false
 
   val io = IO(new Bundle {
     val addr = Input(UInt(hsize.W))

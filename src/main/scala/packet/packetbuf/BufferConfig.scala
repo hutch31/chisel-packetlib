@@ -21,7 +21,9 @@ case class BufferConfig
  MaxReferenceCount : Int = 1,
  HasDropPort : Boolean = true,
  WritePortOrder : Seq[Int] = Nil,
- MemControl : MemoryControl = new MemoryControl
+ MemControl : MemoryControl = new MemoryControl,
+ FreeListReadLatency : Int = 1,
+ LinkListReadLatency : Int = 1
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit

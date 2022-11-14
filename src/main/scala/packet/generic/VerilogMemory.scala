@@ -11,7 +11,11 @@ class VerilogMemory1RW[D <: Data, MC <: MemoryControl](dtype: D, words: Int, rla
   minst.io.rd_en := io.readEnable
   minst.io.addr := io.addr
   minst.io.d_in := io.writeData.asUInt
-  io.readData := minst.io.d_out.asTypeOf(dtype.cloneType)
+  if (rlat > 1) {
+    io.readData := ShiftRegister(minst.io.d_out.asTypeOf(dtype.cloneType), rlat-1)
+  } else {
+    io.readData := minst.io.d_out.asTypeOf(dtype.cloneType)
+  }
 }
 
 class VerilogMemgen1RW extends Memgen1RW {
@@ -145,7 +149,11 @@ class VerilogMemory1R1W[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : M
   minst.io.wr_addr := io.writeAddr
   minst.io.rd_addr := io.readAddr
   minst.io.d_in := io.writeData.asUInt
-  io.readData := minst.io.d_out.asTypeOf(dtype.cloneType)
+  if (rlat > 1) {
+    io.readData := ShiftRegister(minst.io.d_out.asTypeOf(dtype.cloneType), rlat-1)
+  } else {
+    io.readData := minst.io.d_out.asTypeOf(dtype.cloneType)
+  }
 }
 
 class VerilogMemgen1R1W extends Memgen1R1W {
