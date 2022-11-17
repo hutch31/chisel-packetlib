@@ -10,7 +10,8 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     val portDataOut = Vec(c.ReadClients, Decoupled(new PacketData(c.WordSize)))
     val portDataIn = Vec(c.WriteClients, Flipped(Decoupled(new PacketData(c.WordSize))))
     val destIn = Vec(c.WriteClients, Flipped(Decoupled(new RoutingResult(c.ReadClients))))
-    val status = new BufferStatus(c)
+    val config = new BufferConfiguration(c)
+    val status = new PktBufStatus(c)
     val pkt_count = Output(new PacketCounters(c))
     val readerSchedResult = Vec(c.ReadClients, ValidIO(new SchedulerReq(c)))
     val memControl = Vec(c.totalMemoryCount, c.MemControl.factory)
@@ -18,7 +19,8 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   val readers = for (i <- 0 until c.ReadClients) yield Module(new PacketReader(c))
   val writers = for (i <- 0 until c.WriteClients) yield Module(new PacketWriter(c))
   val buffer = Module(new FlatPacketBuffer(c))
-  val scheduler = Module(new DirectScheduler(c))
+  val schedMux = Module(new DropSchedulerInputMux(c))
+  val scheduler = Module(new DropQueueScheduler(c))
 
   val writePktInc = Wire(Vec(c.WriteClients, Bool()))
   val readPktInc = Wire(Vec(c.ReadClients, Bool()))
@@ -27,7 +29,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     buffer.io.writerInterface(i) <> writers(i).io.interface
     writers(i).io.portDataIn <> io.portDataIn(i)
     writers(i).io.destIn <> io.destIn(i)
-    writers(i).io.schedOut <> scheduler.io.schedIn(i)
+    writers(i).io.schedOut <> schedMux.io.schedIn(i)
     if (i == c.WriteClients-1) {
       writers(c.WritePortSeq(i)).io.writeReqIn := buffer.io.writeReqOut
     } else {
@@ -36,6 +38,8 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     writePktInc(i) := writers(i).io.schedOut.valid
   }
   buffer.io.writeReqIn := writers(c.WritePortSeq(0)).io.writeReqOut
+
+  schedMux.io.schedOut <> scheduler.io.schedIn
 
   for (i <- 0 until c.ReadClients) {
     readers(i).io.id := i.U
@@ -49,16 +53,15 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     io.readerSchedResult(i).valid := scheduler.io.schedOut(i).valid
   }
 
-  if (c.HasDropPort) {
-    val dropper = Module(new PacketDropper(c))
-    dropper.io.interface <> buffer.io.dropInterface.get
-    dropper.io.schedIn <> scheduler.io.dropOut.get
-    io.pkt_count.incDropCount := dropper.io.schedIn.valid
-  } else {
-    io.pkt_count.incDropCount := 0.B
-  }
+  val dropper = Module(new PacketDropper(c))
+  dropper.io.interface <> buffer.io.dropInterface.get
+  dropper.io.schedIn <> scheduler.io.dropOut
+  io.pkt_count.incDropCount := dropper.io.schedIn.valid
 
-  io.status <> buffer.io.status
+  io.status.buffer <> buffer.io.status
+  io.status.dropQueueStatus := scheduler.io.dropQueueStatus
+  scheduler.io.dropQueueConfig := io.config.dropQueueConfig
+
   io.pkt_count.incTxCount := Cat(writePktInc.reverse)
   io.pkt_count.incRxCount := Cat(readPktInc.reverse)
   io.memControl <> buffer.io.memControl
@@ -96,7 +99,7 @@ class DirectScheduler(c : BufferConfig) extends Module {
   }
 
   if (c.HasDropPort) {
-    val dropSender = Module(new DCCreditSender(new SchedulerReq(c), 1))
+    val dropSender = Module(new DCCreditSender(new SchedulerReq(c), c.credit))
     dropSender.io.enq <> dropMux.get.io.p
     io.dropOut.get <> dropSender.io.deq
   }

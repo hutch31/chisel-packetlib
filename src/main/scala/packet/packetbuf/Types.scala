@@ -94,6 +94,7 @@ class PacketDropInterface(c : BufferConfig) extends Bundle {
 class SchedulerReq(c : BufferConfig) extends Bundle {
   val dest = UInt(c.ReadClients.W)
   val length = UInt(log2Ceil(c.MTU).W)
+  val pageCount = UInt(log2Ceil(c.maxPagePerPacket+1).W)
   val startPage = new PageType(c)
 }
 
@@ -103,9 +104,29 @@ class RoutingResult(val destinations : Int) extends Bundle {
   def getNumDest() : UInt = { PopCount(dest) }
 }
 
+class DropQueueConfig(c : BufferConfig) extends Bundle {
+  val packetDropThreshold = Vec(c.ReadClients, UInt(log2Ceil(c.MaxPacketsPerPort+1).W))
+  val pageDropThreshold = Vec(c.ReadClients, UInt(log2Ceil(c.MaxPagesPerPort+1).W))
+}
+
+class DropQueueStatus(c : BufferConfig) extends Bundle {
+  val tailDropInc = Vec(c.ReadClients, Bool())
+  val outputQueueSize = Vec(c.ReadClients, UInt(log2Ceil(c.MaxPacketsPerPort+1).W))
+  val outputPageSize = Vec(c.ReadClients, UInt(log2Ceil(c.MaxPagesPerPort+1).W))
+}
+
+class BufferConfiguration(c : BufferConfig) extends Bundle {
+  val dropQueueConfig = Input(new DropQueueConfig(c))
+}
+
+class PktBufStatus(c : BufferConfig) extends Bundle {
+  val buffer = new BufferStatus(c)
+  val dropQueueStatus = Output(new DropQueueStatus(c))
+}
+
 class BufferStatus(c : BufferConfig) extends Bundle {
-  val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
   val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
+  val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
 }
 
 class RefCountAdd(val c : BufferConfig) extends Bundle {

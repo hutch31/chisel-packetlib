@@ -17,7 +17,7 @@ class PacketDropper (c : BufferConfig) extends Module {
   val ws_idle :: ws_wait_link :: Nil = Enum(2)
   val walkState = RegInit(init=ws_idle)
   val currentPage = Reg(new PageType(c))
-  val schedRx = Module(new DCCreditReceiver(new SchedulerReq(c), 1))
+  val schedRx = Module(new DCCreditReceiver(new SchedulerReq(c), c.credit))
 
   // connect credit receivers and buffers to IO
   linkListTx.io.deq <> io.interface.linkListReadReq

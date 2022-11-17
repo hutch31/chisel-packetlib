@@ -84,8 +84,8 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
   io.readRespOut := buffer.io.readRespOut
 
   // connect buffer status signals
-  io.status.pagesPerPort := freeList.io.pagesPerPort
   io.status.freePages := freeList.io.freePages
+  io.status.pagesPerPort := freeList.io.pagesPerPort
 
   for (i <- 0 until c.NumPools) {
     buffer.io.memControl(i) <> io.memControl(i*3)

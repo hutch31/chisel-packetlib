@@ -100,6 +100,7 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
     val error = Output(Bool())
     val expQueueEmpty = Output(Bool())
     val id = Input(UInt(8.W))
+    val receivePacketCount = Output(UInt(16.W))
   })
   val pidQueue = for (i <- 0 until senders) yield Module(new Queue(new PacketRequest, reqSize))
   val queueData = Wire(Vec(senders, new PacketRequest))
@@ -112,8 +113,9 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
   val rxPacketLen = Reg(UInt(16.W))
   val expPacketLen = Reg(UInt(16.W))
   val checkLength = RegInit(init=false.B)
+  val receivePacketCount = RegInit(init=0.U(16.W))
 
-  io.expQueueEmpty := Cat(queueEmpty).andR()
+  io.expQueueEmpty := Cat(queueEmpty).andR
   checkLength := false.B
 
   io.sendPacket.ready := true.B
@@ -140,6 +142,7 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
   when (io.packetData.valid && io.packetData.bits.code.isSop()) {
     queueReady := 1.U << packetSrc
     rxPacketLen := wordSize.U
+    receivePacketCount := receivePacketCount + 1.U
     when (packetId =/= queueData(packetSrc).pid || packetDst =/= queueData(packetSrc).dst) {
       printf("ERROR: RX%d Received PID %d != %d, dst %d != %d\n", io.id, packetId, queueData(packetSrc).pid, packetDst, queueData(packetSrc).dst)
       io.error := true.B
@@ -165,5 +168,6 @@ class PacketReceiver(wordSize : Int, senders: Int, reqSize : Int = 8) extends Mo
       io.error := true.B
     }
   }
+  io.receivePacketCount := receivePacketCount
 }
 

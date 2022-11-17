@@ -2,6 +2,8 @@ package packet.packetbuf
 
 import packet.generic._
 
+import java.text.spi.NumberFormatProvider
+
 case class BufferConfig
 (mgen2p: Memgen1R1W,
  mgen1p : Memgen1RW,
@@ -19,11 +21,12 @@ case class BufferConfig
  // When set to more than 1, implements a reference count inside FreeList, so that packets are not freed until
  // the reference count returns to zero.
  MaxReferenceCount : Int = 1,
- HasDropPort : Boolean = true,
  WritePortOrder : Seq[Int] = Nil,
  MemControl : MemoryControl = new MemoryControl,
  FreeListReadLatency : Int = 1,
- LinkListReadLatency : Int = 1
+ LinkListReadLatency : Int = 1,
+ MaxPacketsPerPort : Int = 16,
+ MaxPagesPerPort : Int = 64
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit
@@ -33,6 +36,8 @@ case class BufferConfig
   val bytesPerPage = WordSize * LinesPerPage
   val maxPagePerPacket = MTU / bytesPerPage + 1
   val totalPages = NumPools * PagePerPool
+  val HasDropPort : Boolean = true
+
   val IntReadClients = if (HasDropPort) ReadClients+1 else ReadClients
   val readerSchedCredit = 1
   // Each pool has 1 packet buffer memory, 1 free list memory, and 1 link list memory

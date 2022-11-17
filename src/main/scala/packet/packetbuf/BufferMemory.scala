@@ -67,7 +67,7 @@ class BufferMemoryPool(c : BufferConfig) extends Module {
     val writeReqIn = Flipped(ValidIO(new BufferWriteReq(c)))
     val readReqIn = Flipped(ValidIO(new BufferReadReq(c)))
     val readRespOut = ValidIO(new BufferReadResp(c))
-    val memControl = c.MemControl
+    val memControl = c.MemControl.factory
   })
   if (c.PacketBuffer2Port) {
     val mem = Module(c.mgen2p(Vec(c.WordSize, UInt(8.W)), c.LinesPerPage * c.PagePerPool, latency = c.PacketBufferReadLatency))

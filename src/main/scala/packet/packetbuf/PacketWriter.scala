@@ -104,6 +104,7 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
         bufferAllocator.io.freePage.ready := true.B
         currentPage := bufferAllocator.io.freePage.bits
         schedOutHold.startPage := bufferAllocator.io.freePage.bits
+        schedOutHold.pageCount := 1.U
       }
     }
 
@@ -140,6 +141,7 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
             currentPage := bufferAllocator.io.freePage.bits
             bufferAllocator.io.freePage.ready := true.B
             pageCount := 0.U
+            schedOutHold.pageCount := schedOutHold.pageCount + 1.U
           }.otherwise {
             pageCount := pageCount + 1.U
           }

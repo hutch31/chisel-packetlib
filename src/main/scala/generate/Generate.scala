@@ -30,8 +30,7 @@ object Generate extends App {
       getIntField(bconf, "PagePerPool", 1), getIntField(bconf, "WordSize", 4), getIntField(bconf, "LinesPerPage", 4),
       getIntField(bconf, "ReadClients", 2), numWritePorts, getIntField(bconf, "MTU", 1518),
       getIntField(bconf, "credit", 1), getIntField(bconf, "ReadWordBuffer", 1), (bconf \ "PacketBuffer2Port").text.toBoolean,
-      getIntField(bconf, "PacketBufferReadLatency", 1), getIntField(bconf, "MaxReferenceCount", 1),
-      (bconf \ "HasDropPort").text.toBoolean, writePortSeq)
+      getIntField(bconf, "PacketBufferReadLatency", 1), getIntField(bconf, "MaxReferenceCount", 1), writePortSeq)
 
     val buildArgs = Array("--target-dir", "generated")
 
