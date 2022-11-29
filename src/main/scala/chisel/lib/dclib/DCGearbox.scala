@@ -12,11 +12,12 @@ import scala.collection.mutable.ArrayBuffer
  * @param inWidth   Bit width of data input
  * @param outWidth  Bit width of data output
  */
-class DCGearbox(inWidth : Int, outWidth : Int) extends Module {
+class DCGearbox(inWidth : Int, outWidth : Int, hasClear : Boolean = false) extends Module {
   val holdSize = if (inWidth > outWidth) 2 else outWidth / inWidth + 2
   val io = IO(new Bundle {
     val c = Flipped(Decoupled(UInt(inWidth.W)))
     val p = Decoupled(UInt(outWidth.W))
+    val clear = if (hasClear) Some(Input(Bool())) else None
   })
   val modTable = VecInit(for (i <- 0 until (inWidth+outWidth)) yield (i % inWidth).U)
   val divTable = VecInit(for (i <- 0 until (inWidth+outWidth)) yield (i / inWidth).U)
@@ -73,5 +74,15 @@ class DCGearbox(inWidth : Int, outWidth : Int) extends Module {
       hold(i) := nextInHold(i)
     wordCount := wordCount + 1.U
     bitCount := bitCount +& inWidth.U
+  }
+
+  if (hasClear) {
+    when (io.clear.get) {
+      bitCount := 0.U
+      bitShift := 0.U
+      wordCount := 0.U
+      io.c.ready := 0.B
+      io.p.valid := 0.B
+    }
   }
 }
