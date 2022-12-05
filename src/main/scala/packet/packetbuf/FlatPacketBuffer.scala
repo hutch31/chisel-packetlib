@@ -13,7 +13,7 @@ class FlatPacketBuffer(c : BufferConfig) extends Module {
     val readRespOut = ValidIO(new BufferReadResp(c))
     val status = new BufferStatus(c)
     val dropInterface = if (c.HasDropPort) Some(Flipped(new PacketDropInterface(c))) else None
-    val memControl = Vec(c.totalMemoryCount, c.MemControl.factory)
+    val memControl = Vec(c.bufferMemoryCount, c.MemControl.factory)
   })
   val buffer = Module(new BufferMemory(c))
   val linkList = Module(new LinkList(c))

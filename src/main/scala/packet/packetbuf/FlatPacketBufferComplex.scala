@@ -64,7 +64,9 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
 
   io.pkt_count.incTxCount := Cat(writePktInc.reverse)
   io.pkt_count.incRxCount := Cat(readPktInc.reverse)
-  io.memControl <> buffer.io.memControl
+  //io.memControl <> buffer.io.memControl
+  for (i <- 0 until c.bufferMemoryCount) buffer.io.memControl(i) <> io.memControl(i)
+  for (i <- 0 until c.schedMemoryCount) scheduler.io.memControl(i) <> io.memControl(i+c.bufferMemoryCount)
 }
 
 // Basic "scheduler" takes requests from source and sends them to their requested destination

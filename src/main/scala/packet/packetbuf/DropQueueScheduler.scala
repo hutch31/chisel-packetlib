@@ -3,6 +3,7 @@ package packet.packetbuf
 import chisel.lib.dclib.{CreditIO, DCArbiter, DCCreditReceiver, DCCreditSender, DCMirror, DcMcCrossbar}
 import chisel3._
 import chisel3.util._
+import packet.generic.MemQueueSP
 
 class DropQueueScheduler (c : BufferConfig) extends Module {
   require(c.HasDropPort == true)
@@ -13,12 +14,13 @@ class DropQueueScheduler (c : BufferConfig) extends Module {
     val dropOut = new CreditIO(new SchedulerReq(c))
     val dropQueueConfig = Input(new DropQueueConfig(c))
     val dropQueueStatus = Output(new DropQueueStatus(c))
+    val memControl = Vec(c.schedMemoryCount, c.MemControl.factory)
   })
   val credRx = Module(new DCCreditReceiver(new SchedulerReq(c), c.credit))
   val credTx = for (i <- 0 until c.ReadClients) yield Module(new DCCreditSender(new SchedulerReq(c), c.readerSchedCredit))
   val packetRep = Module(new DCMirror(new SchedulerReq(c), c.ReadClients))
   val dropMux = Module(new DCArbiter(new SchedulerReq(c), c.ReadClients, false))
-  val outputQ = for (i <- 0 until c.ReadClients) yield Module(new Queue(new SchedulerReq(c), c.MaxPacketsPerPort))
+  val outputQ = for (i <- 0 until c.ReadClients) yield Module(new MemQueueSP(new SchedulerReq(c), c.MaxPacketsPerPort, c.mgen1p, c.MemControl, c.DropQueueReadLatency))
   val portPageCount = RegInit(VecInit(for (i <- 0 until c.ReadClients) yield 0.U(log2Ceil(c.MaxPagesPerPort+1).W)))
   val dropSender = Module(new DCCreditSender(new SchedulerReq(c), c.credit))
   val dropQueue = Module(new Queue(new SchedulerReq(c), c.ReadClients))
@@ -30,13 +32,14 @@ class DropQueueScheduler (c : BufferConfig) extends Module {
   dropMux.io.p <> dropQueue.io.enq
 
   for (out <- 0 until c.ReadClients) {
-    io.dropQueueStatus.outputQueueSize(out) := outputQ(out).io.count
+    io.dropQueueStatus.outputQueueSize(out) := outputQ(out).io.usage
     io.dropQueueStatus.tailDropInc(out) := 0.B
     outputQ(out).io.enq <> packetRep.io.p(out)
+    outputQ(out).io.memControl <> io.memControl(out)
     dropMux.io.c(out).valid := 0.B
     dropMux.io.c(out).bits := packetRep.io.p(out).bits
 
-    val overDropThresh = outputQ(out).io.count >= io.dropQueueConfig.packetDropThreshold(out) || portPageCount(out) >= io.dropQueueConfig.pageDropThreshold(out)
+    val overDropThresh = outputQ(out).io.usage >= io.dropQueueConfig.packetDropThreshold(out) || portPageCount(out) >= io.dropQueueConfig.pageDropThreshold(out)
 
     when (overDropThresh) {
       outputQ(out).io.enq.valid := 0.B
@@ -55,7 +58,7 @@ class DropQueueScheduler (c : BufferConfig) extends Module {
 
     credTx(out).io.enq <> outputQ(out).io.deq
     io.schedOut(out) <> credTx(out).io.deq
-    io.dropQueueStatus.outputQueueSize(out) := outputQ(out).io.count
+    io.dropQueueStatus.outputQueueSize(out) := outputQ(out).io.usage
   }
 
   dropQueue.io.deq <> dropSender.io.enq
