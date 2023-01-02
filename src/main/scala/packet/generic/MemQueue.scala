@@ -22,11 +22,12 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W, memCon : Memor
   val nxt_wrptr = WireDefault(wrptr)
   val wrptr_p1 = Wire(UInt(asz.W))
   val rdptr_p1 = Wire(UInt(asz.W))
+  val delayWrptr = RegNext(init=0.U(asz.W), next=wrptr)
   val full = RegInit(0.B)
   val wr_addr = wrptr(asz-1,0)
   val rd_addr = nxt_rdptr(asz-1,0)
   val wr_en = io.enq.valid & !full
-  val nxt_valid = full || wrptr =/= rdptr
+  val nxt_valid = full || delayWrptr =/= rdptr
   //val deq_valid = ShiftRegister(nxt_valid, readLatency)
   val deq_valid = RegInit(VecInit(Seq.fill(readLatency)(0.B)))
   val outq = Module(new Queue(data.cloneType, outqSize))

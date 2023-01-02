@@ -206,7 +206,7 @@ class FreeListPool(c : BufferConfig, poolNum : Int) extends Module {
 
   // Wait for a request to come in, then append the pool number and page number
   // to the request and send back out
-  when (requestIn.valid && requestOut.ready && freeList.io.deq.valid) {
+  when (state === s_run && requestIn.valid && requestOut.ready && freeList.io.deq.valid) {
     requestIn.ready := true.B
     requestOut.valid := true.B
     freeList.io.deq.ready := true.B

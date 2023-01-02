@@ -64,7 +64,6 @@ class LinkListPool(c : BufferConfig) extends Module {
   val state = RegInit(init=s_init)
   val initCount = RegInit(init=0.U(log2Ceil(c.PagePerPool).W))
   val outq = Module(new Queue(new LinkListReadResp(c), 2).suggestName("LinkListOutputQ"))
-  val readValid = RegNext(init=false.B, next=io.readReq.valid)
   mem.attachMemory(io.memControl)
 
   io.writeReq.ready := false.B
@@ -78,7 +77,6 @@ class LinkListPool(c : BufferConfig) extends Module {
 
   switch (state) {
     is (s_init) {
-      //mem.write(initCount, 0.asTypeOf(new PageLink(c)))
       mem.io.writeEnable := true.B
       mem.io.writeAddr := initCount
       mem.io.writeData := 0.asTypeOf(new PageLink(c))
@@ -91,15 +89,12 @@ class LinkListPool(c : BufferConfig) extends Module {
     is (s_ready) {
       io.writeReq.ready := true.B
       mem.io.writeEnable := io.writeReq.valid
-      //when (io.writeReq.valid) {
-      //  mem.write(io.writeReq.bits.addr.pageNum, io.writeReq.bits.data)
-      //}
     }
   }
 
   outq.io.enq.bits.data := mem.io.readData
-  // use one cycle delayed requestor
-  outq.io.enq.bits.requestor := RegEnable(next=io.readReq.bits.requestor, enable=io.readReq.valid)
-  outq.io.enq.valid := readValid
+  // use latency delayed requestor
+  outq.io.enq.bits.requestor := ShiftRegister(io.readReq.bits.requestor, c.LinkListReadLatency)
+  outq.io.enq.valid := ShiftRegister(mem.io.readEnable, c.LinkListReadLatency, 0.B, 1.B)
   io.readResp <> outq.io.deq
 }
