@@ -48,12 +48,6 @@ class DCArbiter[D <: Data](data: D, inputs: Int, locking: Boolean) extends Modul
       }.otherwise {
         rv := tmp_grant2
       }
-    }.elsewhen(cur_req =/= 0.U) {
-      when(msk_req =/= 0.U) {
-        rv := Cat(tmp_grant(0), tmp_grant(inputs - 1, 1))
-      }.otherwise {
-        rv := Cat(tmp_grant2(0), tmp_grant2(inputs - 1, 1))
-      }
     }.otherwise {
       rv := cur_grant
     }
@@ -62,25 +56,25 @@ class DCArbiter[D <: Data](data: D, inputs: Int, locking: Boolean) extends Modul
 
   io_c_valid := Cat(io.c.map(_.valid).reverse)
 
-  io.p.valid := io_c_valid.orR()
+  io.p.valid := io_c_valid.orR
   to_be_granted := just_granted
 
   if (locking) {
     val rr_locked = RegInit(false.B)
 
-    when ((io_c_valid & just_granted).orR() && !rr_locked) {
+    when ((io_c_valid & just_granted).orR && !rr_locked) {
       nxt_rr_locked := true.B
-    }.elsewhen ((io_c_valid & just_granted & io.rearb.get).orR()) {
+    }.elsewhen ((io_c_valid & just_granted & io.rearb.get).orR) {
       nxt_rr_locked := false.B
     }.otherwise {
       nxt_rr_locked := rr_locked
     }
 
-    when (nxt_rr_locked && (io_c_valid & just_granted).orR()) {
+    when (nxt_rr_locked && (io_c_valid & just_granted).orR) {
       to_be_granted := just_granted
     }.otherwise {
       when (io.p.ready) {
-        to_be_granted := Cat(just_granted(0), just_granted(inputs-1,1))
+        to_be_granted := just_granted.rotateRight(1)
       }.otherwise {
         to_be_granted := just_granted
       }
@@ -94,11 +88,6 @@ class DCArbiter[D <: Data](data: D, inputs: Int, locking: Boolean) extends Modul
     just_granted := to_be_granted
   }
 
-  io.p.bits := io.c(0).bits
-  for (i <- 0 until inputs) {
-    when (to_be_granted(i)) {
-      io.p.bits := io.c(i).bits
-    }
-  }
+  io.p.bits := MuxLookup(PriorityEncoder(to_be_granted), io.c(0).bits, for (i <- 0 until inputs) yield (i.U -> io.c(i).bits))
 }
 

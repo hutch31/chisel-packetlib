@@ -33,7 +33,7 @@ class PacketWriter(val c: BufferConfig, val writeBuf : Int = 1) extends Module {
     val id = Input(UInt(log2Ceil(c.WriteClients).W))
   })
 
-  val dest = Module(new DCHold(new RoutingResult(c.ReadClients)))
+  val dest = Module(new Queue(new RoutingResult(c.ReadClients), 3))
   val linkWriteSend = Module(new DCCreditSender(new LinkListWriteReq(c), c.linkWriteCredit))
   val schedOutSend = Module(new DCCreditSender(new SchedulerReq(c), c.schedWriteCredit))
   val bufferAllocator = Module(new BasicPacketBufferAllocator(c))
