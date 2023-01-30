@@ -24,7 +24,7 @@ class DCCreditSender[D <: Data](data: D, val maxCredit: Int) extends Module {
   require(maxCredit >= 1)
   override def desiredName: String = "DCCreditSender_" + data.toString
 
-  val icredit = RegNext(io.deq.credit)
+  val icredit = RegNext(io.deq.credit, init=0.B)
   val curCredit = RegInit(init=maxCredit.U)
   when (icredit && !io.enq.fire) {
     curCredit := curCredit + 1.U
@@ -48,7 +48,7 @@ class DCCreditReceiver[D <: Data](data: D, val maxCredit: Int) extends Module {
   require(maxCredit >= 1)
   override def desiredName: String = "DCCreditReceiver_" + data.toString
 
-  val ivalid = RegNext(io.enq.valid)
+  val ivalid = RegNext(io.enq.valid, init=0.B)
   val idata = RegNext(io.enq.bits)
   val outFifo = Module(new Queue(data.cloneType, maxCredit))
   val nextCredit = WireDefault(0.B)
