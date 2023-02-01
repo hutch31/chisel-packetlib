@@ -71,7 +71,6 @@ class PacketReader(val c : BufferConfig) extends Module {
     is (ws_idle) {
       when(schedRx.io.deq.valid & length.io.enq.ready & linkListTx.io.enq.ready) {
         length.io.enq.valid := true.B
-        schedRx.io.deq.ready := true.B
         linkListTx.io.enq.valid := true.B
         currentPage := schedRx.io.deq.bits.startPage
         linkListTx.io.enq.bits.addr := schedRx.io.deq.bits.startPage
@@ -94,6 +93,8 @@ class PacketReader(val c : BufferConfig) extends Module {
           // no more pages, go back to idle
           pageList.io.enq.bits.lastPage := true.B
           walkState := ws_idle
+          // delay schedRx ready until we return to idle state, to avoid false low indication on output queue
+          schedRx.io.deq.ready := true.B
         }
       }
     }
@@ -120,7 +121,7 @@ class PacketReader(val c : BufferConfig) extends Module {
   metaQueue.io.enq.bits.page := pageList.io.deq.bits.page
 
   val txResourceUsed = txRequestCount +& txq.io.count
-  val fsIdleReady = metaQueue.io.enq.ready & pageList.io.deq.valid & length.io.deq.valid & bufferReadTx.io.enq.ready
+  val fsIdleReady = (txResourceUsed < c.ReadWordBuffer.U) & metaQueue.io.enq.ready & pageList.io.deq.valid & length.io.deq.valid & bufferReadTx.io.enq.ready
   val fsFetchReady = (txResourceUsed < c.ReadWordBuffer.U) & metaQueue.io.enq.ready & pageList.io.deq.valid & bufferReadTx.io.enq.ready & freeListTx.io.enq.ready
 
   // Track number of read requests in flight
