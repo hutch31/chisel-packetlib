@@ -107,6 +107,7 @@ class RoutingResult(val destinations : Int) extends Bundle {
 class DropQueueConfig(c : BufferConfig) extends Bundle {
   val packetDropThreshold = Vec(c.ReadClients, UInt(log2Ceil(c.MaxPacketsPerPort+1).W))
   val pageDropThreshold = Vec(c.ReadClients, UInt(log2Ceil(c.MaxPagesPerPort+1).W))
+  val maxActivePortThreshold = UInt(log2Ceil(c.ReadClients+1).W)
 }
 
 class DropQueueStatus(c : BufferConfig) extends Bundle {
@@ -127,6 +128,15 @@ class PktBufStatus(c : BufferConfig) extends Bundle {
 class BufferStatus(c : BufferConfig) extends Bundle {
   val freePages = Output(Vec(c.NumPools, UInt(log2Ceil(c.PagePerPool+1).W)))
   val pagesPerPort = Output(Vec(c.WriteClients, UInt(log2Ceil(c.totalPages).W)))
+}
+
+class ComplexBufferStatus(c : BufferConfig) extends Bundle {
+  val readerPageLinkError = UInt(c.ReadClients.W)
+}
+
+class TopBufferStatus(c : BufferConfig) extends Bundle {
+  val flat = new PktBufStatus(c)
+  val complex = Output(new ComplexBufferStatus(c))
 }
 
 class RefCountAdd(val c : BufferConfig) extends Bundle {

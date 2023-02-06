@@ -27,7 +27,9 @@ case class BufferConfig
  LinkListReadLatency : Int = 1,
  MaxPacketsPerPort : Int = 16,
  MaxPagesPerPort : Int = 64,
- DropQueueReadLatency : Int = 1
+ DropQueueReadLatency : Int = 1,
+ MaxReadBandwidthPerPort : Int = 32,
+ MaxReadBandwidthLimit : Int = 96
 ) {
   val freeListReqCredit = credit
   val freeListRespCredit = credit

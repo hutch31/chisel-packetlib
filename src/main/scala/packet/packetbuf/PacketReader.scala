@@ -160,6 +160,7 @@ class PacketReader(val c : BufferConfig) extends Module {
           pageList.io.deq.ready := true.B
           metaQueue.io.enq.bits.pageValid := true.B
           //freeListTx.io.enq.valid := true.B
+          // Error if we are on the last data word, but page link indicates that the list is not finished
           io.pageLinkError := !pageList.io.deq.bits.lastPage
           pageCount := 0.U
         }.otherwise {
@@ -169,7 +170,7 @@ class PacketReader(val c : BufferConfig) extends Module {
             pageList.io.deq.ready := true.B
             //freeListTx.io.enq.valid := true.B
             metaQueue.io.enq.bits.pageValid := true.B
-            io.pageLinkError := !pageList.io.deq.bits.lastPage
+            io.pageLinkError := pageList.io.deq.bits.lastPage
           }.otherwise {
             pageCount := pageCount + 1.U
           }

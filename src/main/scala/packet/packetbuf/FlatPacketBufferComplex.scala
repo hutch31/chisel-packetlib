@@ -11,7 +11,7 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
     val portDataIn = Vec(c.WriteClients, Flipped(Decoupled(new PacketData(c.WordSize))))
     val destIn = Vec(c.WriteClients, Flipped(Decoupled(new RoutingResult(c.ReadClients))))
     val config = new BufferConfiguration(c)
-    val status = new PktBufStatus(c)
+    val status = new TopBufferStatus(c)
     val pkt_count = Output(new PacketCounters(c))
     val readerSchedResult = Vec(c.ReadClients, ValidIO(new SchedulerReq(c)))
     val memControl = Vec(c.totalMemoryCount, c.MemControl.factory)
@@ -58,8 +58,9 @@ class FlatPacketBufferComplex(c : BufferConfig) extends Module {
   dropper.io.schedIn <> scheduler.io.dropOut
   io.pkt_count.incDropCount := dropper.io.schedIn.valid
 
-  io.status.buffer <> buffer.io.status
-  io.status.dropQueueStatus := scheduler.io.dropQueueStatus
+  io.status.flat.buffer <> buffer.io.status
+  io.status.flat.dropQueueStatus := scheduler.io.dropQueueStatus
+  io.status.complex.readerPageLinkError := Reverse(Cat(for (r <- readers) yield r.io.pageLinkError))
   scheduler.io.dropQueueConfig := io.config.dropQueueConfig
 
   io.pkt_count.incTxCount := Cat(writePktInc.reverse)

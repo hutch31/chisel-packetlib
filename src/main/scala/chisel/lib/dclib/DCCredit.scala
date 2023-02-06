@@ -15,11 +15,11 @@ class CreditIO[D <: Data](data: D) extends Bundle {
   val bits = Output(data)
 }
 
-class DCCreditSender[D <: Data](data: D, val maxCredit: Int) extends Module {
+class DCCreditSender[D <: Data](data: D, maxCredit: Int) extends Module {
   val io = IO(new Bundle {
     val enq = Flipped(Decoupled(data.cloneType))
     val deq = new CreditIO(data.cloneType)
-    val curCredit = Output(UInt(log2Ceil(maxCredit).W))
+    val curCredit = Output(UInt(log2Ceil(maxCredit+1).W))
   })
   require(maxCredit >= 1)
   override def desiredName: String = "DCCreditSender_" + data.toString

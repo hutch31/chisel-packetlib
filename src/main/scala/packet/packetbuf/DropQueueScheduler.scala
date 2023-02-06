@@ -3,6 +3,7 @@ package packet.packetbuf
 import chisel.lib.dclib.{CreditIO, DCArbiter, DCCreditReceiver, DCCreditSender, DCMirror, DcMcCrossbar}
 import chisel3._
 import chisel3.util._
+import packet.Spigot
 import packet.generic.MemQueueSP
 
 class DropQueueScheduler (c : BufferConfig) extends Module {
@@ -24,6 +25,13 @@ class DropQueueScheduler (c : BufferConfig) extends Module {
   val portPageCount = RegInit(VecInit(for (i <- 0 until c.ReadClients) yield 0.U(log2Ceil(c.MaxPagesPerPort+1).W)))
   val dropSender = Module(new DCCreditSender(new SchedulerReq(c), c.credit))
   val dropQueue = Module(new Queue(new SchedulerReq(c), c.ReadClients))
+  val activeRequests = Reverse(Cat(for (i <- 0 until c.ReadClients) yield outputQ(i).io.deq.valid))
+  val activePackets = PopCount(Cat(for (i <- 0 until c.ReadClients) yield credTx(i).io.curCredit === 0.U))
+  val maxGrantCount = Module(new MaxGrantCount(c.ReadClients))
+
+  val maxGrant = io.dropQueueConfig.maxActivePortThreshold - activePackets
+  maxGrantCount.io.maxGrant := maxGrant
+  maxGrantCount.io.requests := activeRequests
 
   io.schedIn <> credRx.io.enq
   credRx.io.deq <> packetRep.io.c
@@ -56,7 +64,7 @@ class DropQueueScheduler (c : BufferConfig) extends Module {
       portPageCount(out) := portPageCount(out) - outputQ(out).io.deq.bits.pageCount
     }
 
-    credTx(out).io.enq <> outputQ(out).io.deq
+    Spigot(outputQ(out).io.deq, credTx(out).io.enq, maxGrantCount.io.grants(out))
     io.schedOut(out) <> credTx(out).io.deq
     io.dropQueueStatus.outputQueueSize(out) := outputQ(out).io.usage
   }
