@@ -11,7 +11,7 @@ class TestMemQueue extends AnyFreeSpec with ChiselScalatestTester {
   "read and write" in {
     for (readLatency <- 1 to 4) {
       for (depth <- Seq(8, 9, 16, 17, 127, 128, 129)) {
-        test(new MemQueue(UInt(16.W), 17, new VerilogMemgen1R1W(), new MemoryControl, readLatency = readLatency)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
+        test(new MemQueue(UInt(16.W), 17, new Memgen1R1W(), new MemoryControl, readLatency = readLatency)).withAnnotations(Seq(WriteVcdAnnotation)) {
           c => {
             val rand = new scala.util.Random()
             val cycles = 100
@@ -53,7 +53,7 @@ class TestMemQueue extends AnyFreeSpec with ChiselScalatestTester {
   "read and write single port" in {
     for (readLatency <- 1 to 4) {
       for (depth <- Seq(8, 9, 16, 17, 127, 128, 129)) {
-        test(new MemQueueSP(UInt(16.W), depth, new VerilogMemgen1RW(), new MemoryControl, readLatency)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
+        test(new MemQueueSP(UInt(16.W), depth, new Memgen1RW(), new MemoryControl, readLatency)).withAnnotations(Seq(WriteVcdAnnotation)) {
           c => {
             val rand = new scala.util.Random()
             val cycles = 100

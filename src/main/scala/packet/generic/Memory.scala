@@ -82,13 +82,14 @@ class Memory1RW[D <: Data](dtype: D, words: Int, rlat: Int=1, memCon : MemoryCon
 
   when(io.writeEnable) {
     m.write(io.addr, io.writeData)
-  }.elsewhen(io.readEnable) {
-    if (rlat == 1) {
-      io.readData := m.read(io.addr)
-    } else {
-      io.readData := ShiftRegister(m.read(io.addr), rlat-1)
-    }
   }
+  //  .elsewhen(io.readEnable) {
+  if (rlat == 1) {
+    io.readData := m.read(io.addr)
+  } else {
+    io.readData := ShiftRegister(m.read(io.addr), rlat-1)
+  }
+  //}
 }
 
 class Memgen1RW {

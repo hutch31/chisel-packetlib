@@ -15,76 +15,26 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW, memCon : Memo
   override def desiredName: String = "MemQueueSP_" + data.toString + "_D" + depth.toString
 
   val mem = Module(gen.apply(data, depth, readLatency))
+  val pctl = Module(new MemQueuePtrCtl(depth, readLatency))
   val asz = log2Ceil(depth)
-  val wrptr = RegInit(init=0.U(asz.W))
-  val rdptr = RegInit(init=0.U(asz.W))
-  val nxt_rdptr = WireDefault(rdptr)
-  val nxt_wrptr = WireDefault(wrptr)
-  val wrptr_p1 = Wire(UInt(asz.W))
-  val rdptr_p1 = Wire(UInt(asz.W))
-  val full = RegInit(0.B)
-  val wr_addr = wrptr(asz-1,0)
-  val rd_addr = rdptr(asz-1,0)
-  val nxt_valid = wrptr =/= rdptr
-  val deq_valid = RegInit(VecInit(Seq.fill(readLatency)(0.B)))
   val outq = Module(new Queue(data.cloneType, outqSize))
-  val outPipeSize = PopCount(Cat(deq_valid)) +& outq.io.count
-  val outPipeFull = outPipeSize >= outqSize.U
-  val rd_en = nxt_valid & !outPipeFull
-  val wr_en = io.enq.valid & !full & !rd_en
-  val intUsage = Wire(UInt(log2Ceil(depth+1).W))
 
-  deq_valid(0) := rd_en
-  for (i <- 1 until readLatency) {
-    deq_valid(i) := deq_valid(i-1)
-  }
+  pctl.io.outputQueueCount := outq.io.count
+  pctl.io.lowerBound := 0.U
+  pctl.io.upperBound := (depth - 1).U
+  pctl.io.readGate := true.B
+  pctl.io.writeGate := !pctl.io.rd_en
+  pctl.io.enqValid := io.enq.valid
+  pctl.io.deqFire := io.deq.fire
+  io.enq.ready := pctl.io.enqReady
+  io.usage := pctl.io.usage
 
-  mem.attachMemory(io.memControl)
-
-  def sat_add(ptr : UInt) : UInt = {
-    val plus1 = Wire(UInt(ptr.getWidth.W))
-    when (ptr === (depth-1).U) {
-      plus1 := 0.U
-    }.otherwise {
-      plus1 := ptr + 1.U
-    }
-    plus1
-  }
-
-  wrptr_p1 := sat_add(wrptr)
-  rdptr_p1 := sat_add(rdptr)
-
-  when (!full) {
-    full := (wrptr_p1 === rdptr) && (nxt_wrptr === nxt_rdptr)
-    when (wrptr >= rdptr) {
-      intUsage := wrptr - rdptr
-    }.otherwise {
-      intUsage := wrptr +& depth.U - rdptr
-    }
-  }.otherwise {
-    intUsage := depth.U
-    full := !rd_en
-  }
-  io.usage := intUsage +& outq.io.count
-
-  io.enq.ready := !full & !rd_en
-
-  when (wr_en) {
-    nxt_wrptr := wrptr_p1
-  }
-
-  when (rd_en) {
-    nxt_rdptr := rdptr_p1
-  }
-  rdptr := nxt_rdptr
-  wrptr := nxt_wrptr
-
-  mem.io.readEnable := rd_en
-  mem.io.addr := Mux(rd_en, rd_addr, wr_addr)
+  mem.io.readEnable := pctl.io.rd_en
+  mem.io.addr := Mux(pctl.io.rd_en, pctl.io.rdptr(asz - 1, 0), pctl.io.wrptr(asz-1,0))
   mem.io.writeData := io.enq.bits
-  mem.io.writeEnable := wr_en
+  mem.io.writeEnable := pctl.io.wr_en
 
   outq.io.enq.bits := mem.io.readData
-  outq.io.enq.valid := deq_valid(readLatency-1)
+  outq.io.enq.valid := pctl.io.memRdValid
   io.deq <> outq.io.deq
 }

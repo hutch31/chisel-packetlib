@@ -42,7 +42,7 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
   senderMux.io.c.valid := io.req.valid
   senderMux.io.c.bits := io.req.bits
   senderMux.io.sel := io.req.bits.src
-  io.pagesUsed := buffer.io.status.buffer.pagesPerPort.reduce(_ +& _)
+  io.pagesUsed := buffer.io.status.flat.buffer.pagesPerPort.reduce(_ +& _)
   io.totalReceiveCount := io.receivePacketCount.reduce(_ +& _)
 
   for (i <- 0 until conf.ReadClients) {
@@ -54,7 +54,7 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
     buffer.io.config.dropQueueConfig.pageDropThreshold(i) := io.pageDropThres
     buffer.io.config.dropQueueConfig.packetDropThreshold(i) := io.packetDropThres
     io.receivePacketCount(i) := receivers(i).io.receivePacketCount
-    when (buffer.io.status.dropQueueStatus.tailDropInc(i)) {
+    when (buffer.io.status.flat.dropQueueStatus.tailDropInc(i)) {
       dropPacketCount(i) := dropPacketCount(i) + 1.U
     }
   }
@@ -77,7 +77,7 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
   when (statusCount === 100.U) {
     statusCount := 0.U
     for (i <- 0 until conf.WriteClients) {
-      printf("INFO : TX%d using %d pages\n", i.U, buffer.io.status.buffer.pagesPerPort(i))
+      printf("INFO : TX%d using %d pages\n", i.U, buffer.io.status.flat.buffer.pagesPerPort(i))
     }
     printf("INFO : Total pages used=%d\n", io.pagesUsed)
   }.otherwise {
