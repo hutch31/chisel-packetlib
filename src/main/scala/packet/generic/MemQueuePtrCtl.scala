@@ -65,7 +65,7 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
   wrptr_p1 := sat_add(wrptr)
   rdptr_p1 := sat_add(rdptr)
   io.fifoDataAvail := nxt_valid
-  val queueDepth = io.upperBound-io.lowerBound+1.U
+  val queueDepth = io.upperBound - io.lowerBound +& 1.U
 
   when (io.init) {
     full := false.B
