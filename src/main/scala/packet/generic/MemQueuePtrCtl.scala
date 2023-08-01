@@ -20,6 +20,7 @@ class MemQueuePtrCtlIO(maxDepth : Int, readLatency : Int, outQueueSize : Int) ex
   val rd_en = Output(Bool())
   val memRdValid = Output(Bool())
   val deqFire = Input(Bool())
+  val fifoDataAvail = Output(Bool())
 }
 
 class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineInstance {
@@ -62,6 +63,7 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
 
   wrptr_p1 := sat_add(wrptr)
   rdptr_p1 := sat_add(rdptr)
+  io.fifoDataAvail := nxt_valid
 
   when(!full) {
     full := (wrptr_p1 === rdptr) && (nxt_wrptr === nxt_rdptr)
