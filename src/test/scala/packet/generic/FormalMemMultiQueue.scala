@@ -16,17 +16,21 @@ class FormalMemMultiQueueTB(depth : Int, numQueue : Int, gen : Memgen1R1W, memCo
   })
   val expqueue = for (q <- 0 until numQueue) yield Module(new Queue(UInt(8.W), depth+memqueue.outqSize))
 
+  val init = RegInit(init=1.B)
   io.enq <> memqueue.io.enq
   io.deq <> memqueue.io.deq
   io.usage <> memqueue.io.usage
   io.memControl <> memqueue.io.memControl
+  memqueue.io.init := init
+  init := 0.B
 
   for (q <- 0 until numQueue) {
     expqueue(q).io.enq.valid := io.enq(q).fire
     expqueue(q).io.enq.bits := io.enq(q).bits
     expqueue(q).io.deq.ready := io.deq(q).fire
-    memqueue.io.lowerBound(q) := (q*depth).U
-    memqueue.io.upperBound(q) := (q*depth+depth-1).U
+    val bounds = (q*depth, q*depth+depth-1)
+    memqueue.io.lowerBound(q) := bounds._1.U
+    memqueue.io.upperBound(q) := bounds._2.U
 
     // data should always match expected queue
     when(io.deq(q).fire) {
@@ -35,11 +39,6 @@ class FormalMemMultiQueueTB(depth : Int, numQueue : Int, gen : Memgen1R1W, memCo
 
     // usage should always match
     assert(memqueue.io.usage(q) === expqueue(q).io.count)
-
-//    // if data enqueued N cycles ago, deq should be valid
-//    when(past(io.enq(q).fire, readLatency + 2)) {
-//      assert(io.deq(q).valid)
-//    }
   }
 }
 

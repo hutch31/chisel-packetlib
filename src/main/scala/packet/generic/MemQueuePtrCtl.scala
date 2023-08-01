@@ -4,7 +4,8 @@ import chisel3._
 import chisel3.util._
 import chisel3.util.experimental.InlineInstance
 
-class MemQueuePtrCtlIO(maxDepth : Int, readLatency : Int, outQueueSize : Int) extends Bundle {
+class MemQueuePtrCtlIO(maxDepth : Int, outQueueSize : Int) extends Bundle {
+  val init = Input(Bool())
   val asz = log2Ceil(maxDepth)
   val enqValid = Input(Bool())
   val enqReady = Output(Bool())
@@ -25,7 +26,7 @@ class MemQueuePtrCtlIO(maxDepth : Int, readLatency : Int, outQueueSize : Int) ex
 
 class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineInstance {
   val outqSize = readLatency + 2
-  val io = IO(new MemQueuePtrCtlIO(depth, readLatency, outqSize))
+  val io = IO(new MemQueuePtrCtlIO(depth, outqSize))
 
   val asz = log2Ceil(depth)
   val wrptr = RegInit(init = 0.U(asz.W))
@@ -43,7 +44,7 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
   val outPipeSize = readInFlight +& io.outputQueueCount
   //val outPipeFull = outPipeSize >= outqSize.U
   val rd_en = nxt_valid & ((outPipeSize < outqSize.U) || io.deqFire) & io.readGate
-  val wr_en = io.enqValid & !full & !rd_en & io.writeGate
+  val wr_en = !io.init & io.enqValid & !full & !rd_en & io.writeGate
   val intUsage = Wire(UInt(log2Ceil(depth + 1).W))
 
 
@@ -64,21 +65,25 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
   wrptr_p1 := sat_add(wrptr)
   rdptr_p1 := sat_add(rdptr)
   io.fifoDataAvail := nxt_valid
+  val queueDepth = io.upperBound-io.lowerBound+1.U
 
-  when(!full) {
+  when (io.init) {
+    full := false.B
+    intUsage := 0.U
+  }.elsewhen(!full) {
     full := (wrptr_p1 === rdptr) && (nxt_wrptr === nxt_rdptr)
     when(wrptr >= rdptr) {
       intUsage := wrptr - rdptr
     }.otherwise {
-      intUsage := wrptr +& depth.U - rdptr
+      intUsage := wrptr +& queueDepth - rdptr
     }
   }.otherwise {
-    intUsage := depth.U
+    intUsage := queueDepth
     full := !rd_en
   }
   io.usage := intUsage +& outPipeSize
 
-  io.enqReady := !full & !rd_en & io.writeGate
+  io.enqReady := !io.init & !full & !rd_en & io.writeGate
 
   when(wr_en) {
     nxt_wrptr := wrptr_p1
@@ -87,8 +92,13 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
   when(rd_en) {
     nxt_rdptr := rdptr_p1
   }
-  rdptr := nxt_rdptr
-  wrptr := nxt_wrptr
+  when (io.init) {
+    rdptr := io.lowerBound
+    wrptr := io.lowerBound
+  }.otherwise {
+    rdptr := nxt_rdptr
+    wrptr := nxt_wrptr
+  }
 
   io.wrptr := wrptr
   io.rdptr := rdptr

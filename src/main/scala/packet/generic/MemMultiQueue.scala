@@ -5,12 +5,12 @@ import chisel3.util._
 
 class MemMultiQueue[D <: Data](data: D, depth : Int, numQueues : Int, gen : Memgen1R1W, memCon : MemoryControl, readLatency : Int = 1) extends Module {
   require (numQueues >= 2)
-  //val outqSize = readLatency*2+1
   val pctl = for (i <- 0 until numQueues) yield Module(new MemQueuePtrCtl(depth, readLatency))
 
   def outqSize = pctl(0).outqSize
 
   val io = IO(new Bundle {
+    val init = Input(Bool())
     val enq = Vec(numQueues, Flipped(new DecoupledIO(data.cloneType)))
     val deq = Vec(numQueues, new DecoupledIO(data.cloneType))
     val usage = Output(Vec(numQueues, UInt(log2Ceil(depth + outqSize + 1).W)))
@@ -27,6 +27,7 @@ class MemMultiQueue[D <: Data](data: D, depth : Int, numQueues : Int, gen : Memg
   for (m <- 0 until numQueues) {
     val outq = Module(new Queue(data.cloneType, pctl(m).outqSize))
 
+    pctl(m).io.init := io.init
     pctl(m).io.outputQueueCount := outq.io.count
     pctl(m).io.lowerBound := io.lowerBound(m)
     pctl(m).io.upperBound := io.upperBound(m)

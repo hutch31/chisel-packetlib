@@ -19,6 +19,7 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W, memCon : Memor
   val asz = log2Ceil(depth)
   val outq = Module(new Queue(data.cloneType, pctl.outqSize))
 
+  pctl.io.init := false.B
   pctl.io.outputQueueCount := outq.io.count
   pctl.io.lowerBound := 0.U
   pctl.io.upperBound := (depth-1).U
