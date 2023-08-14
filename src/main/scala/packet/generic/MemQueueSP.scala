@@ -34,6 +34,7 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW, memCon : Memo
   mem.io.addr := Mux(pctl.io.rd_en, pctl.io.rdptr(asz - 1, 0), pctl.io.wrptr(asz-1,0))
   mem.io.writeData := io.enq.bits
   mem.io.writeEnable := pctl.io.wr_en
+  mem.attachMemory(io.memControl)
 
   outq.io.enq.bits := mem.io.readData
   outq.io.enq.valid := pctl.io.memRdValid

@@ -35,6 +35,7 @@ class MemQueue[D <: Data](data: D, depth : Int, gen : Memgen1R1W, memCon : Memor
   mem.io.writeData := io.enq.bits
   mem.io.writeEnable := pctl.io.wr_en
   mem.io.writeAddr := pctl.io.wrptr(asz-1,0)
+  mem.attachMemory(io.memControl)
 
   outq.io.enq.bits := mem.io.readData
   outq.io.enq.valid := pctl.io.memRdValid
