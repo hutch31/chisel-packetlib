@@ -4,7 +4,8 @@ import chisel3._
 import chisel3.util._
 
 class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW, memCon : MemoryControl, readLatency : Int = 1) extends Module {
-  val outqSize = readLatency+1
+  val pctl = Module(new MemQueuePtrCtl(depth, readLatency))
+  val outqSize = pctl.outqSize
 
   val io = IO(new Bundle {
     val enq = Flipped(new DecoupledIO(data.cloneType))
@@ -15,7 +16,6 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW, memCon : Memo
   override def desiredName: String = "MemQueueSP_" + data.toString + "_D" + depth.toString
 
   val mem = Module(gen.apply(data, depth, readLatency))
-  val pctl = Module(new MemQueuePtrCtl(depth, readLatency))
   val asz = log2Ceil(depth)
   val outq = Module(new Queue(data.cloneType, outqSize))
 
@@ -28,6 +28,7 @@ class MemQueueSP[D <: Data](data: D, depth : Int, gen : Memgen1RW, memCon : Memo
   pctl.io.deqFire := io.deq.fire
   io.enq.ready := pctl.io.enqReady
   io.usage := pctl.io.usage
+  pctl.io.init := 0.B
 
   mem.io.readEnable := pctl.io.rd_en
   mem.io.addr := Mux(pctl.io.rd_en, pctl.io.rdptr(asz - 1, 0), pctl.io.wrptr(asz-1,0))

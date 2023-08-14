@@ -7,8 +7,8 @@ import chiseltest.ChiselScalatestTester
 import chiseltest.formal.{BoundedCheck, Formal, past}
 import org.scalatest.freespec.AnyFreeSpec
 
-class FormalMemQueueTB(depth : Int, gen : Memgen1R1W, memCon : MemoryControl, readLatency : Int = 1) extends Module {
-  val memqueue = Module(new MemQueue(UInt(8.W), depth, gen, memCon, readLatency))
+class FormalMemQueueSP_TB(depth : Int, gen : Memgen1RW, memCon : MemoryControl, readLatency : Int = 1) extends Module {
+  val memqueue = Module(new MemQueueSP(UInt(8.W), depth, gen, memCon, readLatency))
   val io = IO(new Bundle {
     val enq = Flipped(new DecoupledIO(UInt(8.W)))
     val deq = new DecoupledIO(UInt(8.W))
@@ -46,14 +46,16 @@ class FormalMemQueueTB(depth : Int, gen : Memgen1R1W, memCon : MemoryControl, re
   readValid := DontCare
   BoringUtils.bore(memqueue.outq.io.enq.ready, Seq(prefetchReady))
   BoringUtils.bore(memqueue.pctl.io.memRdValid, Seq(readValid))
-  when (readValid) { assert(prefetchReady) }
+  when(readValid) {
+    assert(prefetchReady)
+  }
 }
 
-class FormalMemQueueTest extends AnyFreeSpec with ChiselScalatestTester with Formal {
+class FormalMemQueueSpTest extends AnyFreeSpec with ChiselScalatestTester with Formal {
   "pass formal checks" in {
     for (readLatency <- 1 to 4) {
       println(s"Verifying latency=$readLatency")
-      verify(new FormalMemQueueTB(4, new Memgen1R1W, new MemoryControl, readLatency), Seq(BoundedCheck(10 + readLatency)))
+      verify(new FormalMemQueueSP_TB(4, new Memgen1RW, new MemoryControl, readLatency), Seq(BoundedCheck(10 + readLatency)))
     }
   }
 }
