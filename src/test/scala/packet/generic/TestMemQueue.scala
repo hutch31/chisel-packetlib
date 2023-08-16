@@ -99,7 +99,7 @@ class TestMemQueue extends AnyFreeSpec with ChiselScalatestTester {
         c => {
           c.io.enq.initSource().setSourceClock(c.clock)
           c.io.deq.initSink().setSinkClock(c.clock)
-          val totalSize = depth + readLatency*2+1
+          val totalSize = depth + c.outqSize
 
           for (j <- 0 to 10) {
             c.io.usage.expect(0.U)

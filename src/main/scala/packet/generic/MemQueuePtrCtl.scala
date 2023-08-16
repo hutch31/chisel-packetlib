@@ -38,13 +38,13 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
   val full = RegInit(0.B)
   val wr_addr = wrptr(asz - 1, 0)
   val rd_addr = rdptr(asz - 1, 0)
-  val nxt_valid = wrptr =/= rdptr
+  val nxt_valid = wrptr =/= rdptr || full
   val deq_valid = RegInit(init=0.U(readLatency.W))
   val readInFlight =  PopCount(deq_valid)
   val outPipeSize = readInFlight +& io.outputQueueCount
   //val outPipeFull = outPipeSize >= outqSize.U
   val rd_en = nxt_valid & ((outPipeSize < outqSize.U) || io.deqFire) & io.readGate
-  val wr_en = !io.init & io.enqValid & !full & !rd_en & io.writeGate
+  val wr_en = !io.init & io.enqValid & !full & io.writeGate
   val intUsage = Wire(UInt(log2Ceil(depth + 1).W))
 
 
@@ -83,7 +83,7 @@ class MemQueuePtrCtl(depth : Int, readLatency : Int) extends Module with InlineI
   }
   io.usage := intUsage +& outPipeSize
 
-  io.enqReady := !io.init & !full & !rd_en & io.writeGate
+  io.enqReady := !io.init & !full & io.writeGate
 
   when(wr_en) {
     nxt_wrptr := wrptr_p1

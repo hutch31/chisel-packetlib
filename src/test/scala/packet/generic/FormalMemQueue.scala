@@ -47,6 +47,10 @@ class FormalMemQueueTB(depth : Int, gen : Memgen1R1W, memCon : MemoryControl, re
   BoringUtils.bore(memqueue.outq.io.enq.ready, Seq(prefetchReady))
   BoringUtils.bore(memqueue.pctl.io.memRdValid, Seq(readValid))
   when (readValid) { assert(prefetchReady) }
+
+  when (memqueue.io.usage < depth.U) {
+    assert (io.enq.ready)
+  }
 }
 
 class FormalMemQueueTest extends AnyFreeSpec with ChiselScalatestTester with Formal {

@@ -2,8 +2,10 @@ package packet.packetbuf
 
 import chisel.lib.dclib.DCDemux
 import chisel3._
+import chisel3.util.ImplicitConversions.intToUInt
 import chisel3.util._
 import packet.test.{PacketReceiver, PacketRequest, PacketSender}
+import chiseltest._
 
 class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : Int) extends Module {
   val io = IO(new Bundle {
@@ -13,7 +15,7 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
     val pagesUsed = Output(UInt(log2Ceil(conf.totalPages+1).W))
     val pageDropThres = Input(UInt(log2Ceil(conf.MaxPagesPerPort+1).W))
     val packetDropThres = Input(UInt(log2Ceil(conf.MaxPacketsPerPort+1).W))
-    val status = new PktBufStatus(conf)
+    val status = new TopBufferStatus(conf)
     val receivePacketCount = Output(Vec(conf.ReadClients, UInt(16.W)))
     val totalReceiveCount = Output(UInt(16.W))
     val dropPacketCount = Output(Vec(conf.ReadClients, UInt(16.W)))
@@ -32,6 +34,7 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
   val dropPacketCount = RegInit(VecInit(for (i <- 0 until conf.ReadClients) yield 0.U(16.W)))
 
   io.status := buffer.io.status
+  buffer.io.config.dropQueueConfig.maxActivePortThreshold := conf.ReadClients
 
   for (i <- 0 until conf.WriteClients) {
     senders(i).io.packetData <> buffer.io.portDataIn(i)
@@ -83,5 +86,15 @@ class BufferComplexTestbench(conf : BufferConfig, writeDepth : Int, readDepth : 
   }.otherwise {
     statusCount := statusCount + 1.U
   }
+
+  def getConf = conf
 }
 
+object BufferComplexTestbench {
+
+  /** Set drop threshold for all queues */
+  def setDropThresholds(b : BufferComplexTestbench, pkt : Int, pages : Int) = {
+    b.io.packetDropThres.poke(pkt.U)
+    b.io.pageDropThres.poke(pages.U)
+  }
+}

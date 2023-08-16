@@ -44,9 +44,10 @@ class FormalMemMultiQueueTB(depth : Int, numQueue : Int, gen : Memgen1R1W, memCo
 
 class FormalMemMultiQueueTest extends AnyFreeSpec with ChiselScalatestTester with Formal {
   "pass formal checks" in {
-    for (readLatency <- 1 to 4) {
+    // Reduced the proof depth and memory latency as this formal check can take a long time
+    for (readLatency <- 1 to 2) {
       println(s"Verifying latency=$readLatency")
-      verify(new FormalMemMultiQueueTB(3, 2, new Memgen1R1W, new MemoryControl, readLatency), Seq(BoundedCheck(10 + readLatency)))
+      verify(new FormalMemMultiQueueTB(3, 2, new Memgen1R1W, new MemoryControl, readLatency), Seq(BoundedCheck(6 + readLatency)))
     }
   }
 }

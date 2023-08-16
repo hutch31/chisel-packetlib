@@ -1,6 +1,6 @@
 package packet.packetbuf
 
-import chisel.lib.dclib.{CreditIO, DCArbiter, DCCreditReceiver, DCCreditSender, DCMirror, DcMcCrossbar}
+import chisel.lib.dclib.{CreditIO, DCArbiter, DCCreditReceiver, DCCreditSender, DCDemux, DCMirror, DcMcCrossbar}
 import chisel3._
 import chisel3.util._
 import packet.Spigot
@@ -40,20 +40,16 @@ class DropQueueScheduler (c : BufferConfig) extends Module {
   dropMux.io.p <> dropQueue.io.enq
 
   for (out <- 0 until c.ReadClients) {
+    val dropSelect = Module(new DCDemux(new SchedulerReq(c), 2))
     io.dropQueueStatus.outputQueueSize(out) := outputQ(out).io.usage
     io.dropQueueStatus.tailDropInc(out) := 0.B
-    outputQ(out).io.enq <> packetRep.io.p(out)
+    dropSelect.io.c <> packetRep.io.p(out)
+    dropSelect.io.p(0) <> outputQ(out).io.enq
+    dropSelect.io.p(1) <> dropMux.io.c(out)
     outputQ(out).io.memControl <> io.memControl(out)
-    dropMux.io.c(out).valid := 0.B
-    dropMux.io.c(out).bits := packetRep.io.p(out).bits
 
     val overDropThresh = outputQ(out).io.usage >= io.dropQueueConfig.packetDropThreshold(out) || portPageCount(out) >= io.dropQueueConfig.pageDropThreshold(out)
-
-    when (overDropThresh) {
-      outputQ(out).io.enq.valid := 0.B
-      dropMux.io.c(out).valid := 1.B
-      packetRep.io.p(out).ready := dropMux.io.c(out).ready
-    }
+    dropSelect.io.sel := overDropThresh
     io.dropQueueStatus.tailDropInc(out) := RegNext(dropMux.io.c(out).fire, init=0.B)
 
     when (outputQ(out).io.enq.fire && outputQ(out).io.deq.fire) {

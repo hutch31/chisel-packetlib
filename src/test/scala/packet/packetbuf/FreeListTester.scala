@@ -43,7 +43,7 @@ class FreeListTester extends AnyFreeSpec with ChiselScalatestTester {
   "not free page until ref count zero" in {
     val pagePerPool = 4
     val numPools = 2
-    val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 3, 2, MTU=2048, credit=2, MaxReferenceCount = 3)
+    val conf = BufferConfig(new TestMemgen1R1W, new TestMemgen1RW, numPools, pagePerPool, 2, 4, 3, 2, MTU=2048, credit=2, MaxReferenceCount = 3, MemControl=new TestMemoryControl)
 
     test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {
@@ -54,6 +54,7 @@ class FreeListTester extends AnyFreeSpec with ChiselScalatestTester {
           c.io.refCountAdd(client).initSource().setSourceClock(c.clock)
         }
 
+        c.clock.step(pagePerPool)
 
         for (client <- 0 to 1) {
           for (poolNum <- 0 until numPools) {
@@ -94,7 +95,7 @@ class FreeListTester extends AnyFreeSpec with ChiselScalatestTester {
    "init all pages in multiple pools" in {
     val pagePerPool = 16
     val numPools = 4
-    val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2, MaxReferenceCount = 2)
+    val conf = BufferConfig(new TestMemgen1R1W, new TestMemgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU=2048, credit=2, MaxReferenceCount = 2, MemControl=new TestMemoryControl)
 
     test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
       c => {
@@ -132,7 +133,7 @@ class FreeListTester extends AnyFreeSpec with ChiselScalatestTester {
    "stall return on update conflict" in {
     val pagePerPool = 16
     val numPools = 4
-    val conf = new BufferConfig(new Memgen1R1W, new Memgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2)
+    val conf = new BufferConfig(new TestMemgen1R1W, new TestMemgen1RW, numPools, pagePerPool, 2, 4, 2, 2, MTU = 2048, credit = 2, MemControl=new TestMemoryControl)
 
     test(new FreeList(conf)).withAnnotations(Seq(WriteVcdAnnotation)) {
       c => {

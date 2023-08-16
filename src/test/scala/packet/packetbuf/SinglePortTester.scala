@@ -15,11 +15,13 @@ class SinglePortTester extends AnyFreeSpec with ChiselScalatestTester {
   "sp send a packet" in {
     val readClients = 4
     val writeClients = 4
-    val conf = new BufferConfig(new Memgen1R1W(), new VerilogMemgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=1, PacketBuffer2Port=false)
+    val conf = BufferConfig(new TestMemgen1R1W(), new TestMemgen1RW(), 1, 8, 4, 4, readClients, writeClients, MTU=2048, credit=1, PacketBuffer2Port=false, MemControl=new TestMemoryControl)
 
     test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
       c => {
         var pid : Int = 1
+
+        BufferComplexTestbench.setDropThresholds(c, 15, 30)
 
         for (src <- 0 until writeClients) {
           for (dst <- 0 until readClients) {
@@ -45,12 +47,14 @@ class SinglePortTester extends AnyFreeSpec with ChiselScalatestTester {
     for (numPools <- List(2)) {
       val readClients = 4
       val writeClients = 4
-      val conf = new BufferConfig(new Memgen1R1W(), new VerilogMemgen1RW(), numPools, 8,
-        4, 4, readClients, writeClients, MTU = 2048, credit = 2, ReadWordBuffer=4, PacketBufferReadLatency = 1)
+      val conf = BufferConfig(new TestMemgen1R1W(), new TestMemgen1RW(), numPools, 8,
+        4, 4, readClients, writeClients, MTU = 2048, credit = 2, ReadWordBuffer=4, MemControl=new TestMemoryControl)
 
       test(new BufferComplexTestbench(conf, writeDepth = readClients, readDepth = writeClients)).withAnnotations(Seq(WriteVcdAnnotation, VerilatorBackendAnnotation)) {
         c => {
           var pid : Int = 1
+
+          BufferComplexTestbench.setDropThresholds(c, 15, 30)
 
           for (src <- 0 until writeClients) {
             for (dst <- 0 until readClients) {
